@@ -1,9 +1,4 @@
-import React, {
-  useState,
-  useMemo,
-  useRef,
-  useEffect,
-} from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   SafeAreaView,
   StatusBar,
@@ -638,7 +633,12 @@ export default function DashboardScreen({
               </View>
 
               <View style={isLargeScreen ? styles.rightCol : null}>
-                <View style={[styles.listSection, isLargeScreen && { marginTop: 0 }]}>
+                <View
+                  style={[
+                    styles.listSection,
+                    isLargeScreen && { marginTop: 0 },
+                  ]}
+                >
                   <View style={styles.listHeaderRow}>
                     <Text style={styles.sectionTitle}>Recent Expenses</Text>
                     <View style={styles.listHeaderActions}>
@@ -696,12 +696,14 @@ export default function DashboardScreen({
                       onPress={() => setShowAllExpenses(!showAllExpenses)}
                     >
                       <Text style={styles.showAllText}>
-                        {showAllExpenses ? "Show Less" : `View All (${visibleExpenses.length})`}
+                        {showAllExpenses
+                          ? "Show Less"
+                          : `View All (${visibleExpenses.length})`}
                       </Text>
-                      <Ionicons 
-                        name={showAllExpenses ? "chevron-up" : "chevron-down"} 
-                        size={16} 
-                        color="#6366F1" 
+                      <Ionicons
+                        name={showAllExpenses ? "chevron-up" : "chevron-down"}
+                        size={16}
+                        color="#6366F1"
                       />
                     </TouchableOpacity>
                   )}
@@ -810,41 +812,56 @@ export default function DashboardScreen({
                   No expenses yet. Add some in Overview.
                 </Text>
               ) : (
-                <View style={[
-                  styles.tradingChartContainer, 
-                  isLargeScreen && { maxWidth: 800, alignSelf: 'center', width: '100%' }
-                ]}>
+                <View
+                  style={[
+                    styles.tradingChartContainer,
+                    isLargeScreen && {
+                      maxWidth: 800,
+                      alignSelf: "center",
+                      width: "100%",
+                    },
+                  ]}
+                >
                   {/* Background Grid Lines - Horizontal */}
                   {[0, 1, 2, 3, 4].map((i) => {
-                    const maxVal = Math.max(...Object.values(categoryBreakdown), 1000);
+                    const maxVal = Math.max(
+                      ...Object.values(categoryBreakdown),
+                      1000,
+                    );
                     const labelVal = (maxVal * (i / 4)).toFixed(0);
                     // Use fixed pixel steps for perfect alignment on all platforms
-                    const gridBottom = i * 40 + 36; 
+                    const gridBottom = i * 40 + 36;
                     return (
-                      <View key={`h-${i}`} style={[styles.tradingGridLine, { bottom: gridBottom }]}>
+                      <View
+                        key={`h-${i}`}
+                        style={[styles.tradingGridLine, { bottom: gridBottom }]}
+                      >
                         <Text style={styles.tradingYLabel}>₱{labelVal}</Text>
                       </View>
                     );
                   })}
                   {/* Background Grid Lines - Vertical */}
                   {[0, 1, 2, 3, 4, 5].map((i) => (
-                    <View 
-                      key={`v-${i}`} 
+                    <View
+                      key={`v-${i}`}
                       style={[
-                        styles.tradingGridLineVertical, 
-                        { left: `${i * 18 + 5}%` }
-                      ]} 
+                        styles.tradingGridLineVertical,
+                        { left: `${i * 18 + 5}%` },
+                      ]}
                     />
                   ))}
-                  
+
                   <View style={styles.tradingChartGrid}>
                     {Object.entries(categoryBreakdown)
                       .sort((a, b) => b[1] - a[1])
                       .map(([cat, total], index) => {
-                        const maxVal = Math.max(...Object.values(categoryBreakdown), 1000);
+                        const maxVal = Math.max(
+                          ...Object.values(categoryBreakdown),
+                          1000,
+                        );
                         // Lowered the multiplier to 140 (from 160) to provide 20px of "Headroom"
                         const barHeight = (total / maxVal) * 140;
-                        
+
                         const gradientMap: Record<number, string[]> = {
                           0: ["#4F46E5", "#6366F1"], // Indigo
                           1: ["#10B981", "#34D399"], // Emerald
@@ -857,9 +874,16 @@ export default function DashboardScreen({
                         return (
                           <View key={cat} style={styles.tradingBarColumn}>
                             <View style={styles.tradingBarWrapper}>
-                              <View style={[styles.tradingBarContainer, { height: barHeight }]}>
+                              <View
+                                style={[
+                                  styles.tradingBarContainer,
+                                  { height: barHeight },
+                                ]}
+                              >
                                 <LinearGradient
-                                  colors={barColors as [string, string, ...string[]]}
+                                  colors={
+                                    barColors as [string, string, ...string[]]
+                                  }
                                   style={styles.tradingBarGradient}
                                 >
                                   {/* Glow Top Cap */}
@@ -867,7 +891,12 @@ export default function DashboardScreen({
                                 </LinearGradient>
                               </View>
                             </View>
-                            <Text style={styles.tradingBarLabel} numberOfLines={1}>{cat}</Text>
+                            <Text
+                              style={styles.tradingBarLabel}
+                              numberOfLines={1}
+                            >
+                              {cat}
+                            </Text>
                             <Text style={styles.tradingBarValue}>
                               ₱{total.toFixed(0)}
                             </Text>
@@ -921,24 +950,26 @@ export default function DashboardScreen({
               ) : (
                 <>
                   <View style={styles.profileHeaderRow}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={handlePickImage}
                       activeOpacity={0.7}
                     >
                       {renderAvatar(60, 24)}
-                      <View style={{
-                        position: 'absolute',
-                        right: -4,
-                        bottom: -4,
-                        backgroundColor: '#4F46E5',
-                        borderRadius: 12,
-                        width: 24,
-                        height: 24,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        borderWidth: 2,
-                        borderColor: '#111827'
-                      }}>
+                      <View
+                        style={{
+                          position: "absolute",
+                          right: -4,
+                          bottom: -4,
+                          backgroundColor: "#4F46E5",
+                          borderRadius: 12,
+                          width: 24,
+                          height: 24,
+                          justifyContent: "center",
+                          alignItems: "center",
+                          borderWidth: 2,
+                          borderColor: "#111827",
+                        }}
+                      >
                         <Ionicons name="camera" size={12} color="#FFF" />
                       </View>
                     </TouchableOpacity>
@@ -1185,7 +1216,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0B1120",
   },
   header: {
-    marginTop: 25   ,
+    marginTop: 25,
     paddingHorizontal: 20,
     paddingVertical: 18,
     backgroundColor: "#111827",
@@ -1220,7 +1251,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#F9FAFB",
+    color: "#f1f5fa",
   },
   headerSubtitle: {
     fontSize: 12,
@@ -1232,7 +1263,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(127, 128, 125, 0.2)",
     justifyContent: "center",
     alignItems: "center",
     ...Platform.select({
@@ -1248,7 +1279,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingVertical: 16,
-    paddingBottom: 96,
+    paddingBottom: 140,
     backgroundColor: "#020617",
     maxWidth: 1200,
     width: "100%",
@@ -1273,7 +1304,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: "rgba(15,23,42,0.85)",
+    backgroundColor: "rgba(11, 12, 15, 0.85)",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#1F2937",
   },
@@ -1295,7 +1326,7 @@ const styles = StyleSheet.create({
   },
   chartGridLine: {
     height: 1,
-    backgroundColor: "#1F2937",
+    backgroundColor: "#2b3645",
     opacity: 0.5,
   },
   chartBars: {
@@ -1318,7 +1349,7 @@ const styles = StyleSheet.create({
   },
   chartDayLabel: {
     fontSize: 10,
-    color: "#6B7280",
+    color: "#e2e8f5",
     marginTop: 4,
   },
   categoryChartContainer: {
@@ -1398,13 +1429,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     zIndex: 1,
     paddingTop: 30, // Extra headroom
-    paddingBottom: 36, 
-    paddingRight: 55, 
+    paddingBottom: 36,
+    paddingRight: 55,
   },
   tradingBarColumn: {
     flex: 1,
     alignItems: "center",
-    maxWidth: Platform.OS === 'web' ? 80 : 60,
+    maxWidth: Platform.OS === "web" ? 80 : 60,
   },
   tradingBarWrapper: {
     flex: 1,
@@ -1414,7 +1445,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   tradingBarContainer: {
-    width: Platform.OS === 'web' ? 24 : 18, 
+    width: Platform.OS === "web" ? 24 : 18,
     borderRadius: 12, // Ensure full rounding
     overflow: "hidden",
     shadowColor: "#000",

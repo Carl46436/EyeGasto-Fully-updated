@@ -75,7 +75,7 @@ export default function ExpenseList({ expenses, onDelete, onEdit }: Props) {
 
 const styles = StyleSheet.create({
   listContainer: {
-    paddingBottom: 20,
+    paddingBottom: 0,
   },
   section: {
     marginBottom: 16,
