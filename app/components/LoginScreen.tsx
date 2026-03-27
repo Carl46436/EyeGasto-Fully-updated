@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import FloatingLines from "./FloatingLines";
 import { supabase } from "../services/supabaseClient";
 
 interface Props {

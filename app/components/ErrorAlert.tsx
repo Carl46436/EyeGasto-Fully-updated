@@ -63,7 +63,7 @@ export default function ErrorAlert({
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    top: 0,
+    paddingTop: 50,
     left: 0,
     right: 0,
     zIndex: 1000,
