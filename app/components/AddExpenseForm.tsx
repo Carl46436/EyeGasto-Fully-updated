@@ -24,11 +24,13 @@ interface Props {
     notes?: string,
     imageUri?: string,
   ) => boolean | Promise<boolean>;
+  mode?: "dark" | "light";
 }
 
-export default function AddExpenseForm({ onAdd }: Props) {
+export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
   const { width } = useWindowDimensions();
   const isCompact = width < 420;
+  const isLight = mode === "light";
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
@@ -101,24 +103,28 @@ export default function AddExpenseForm({ onAdd }: Props) {
       style={styles.wrapper}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <BlurView intensity={28} tint="dark" style={styles.container}>
+      <BlurView
+        intensity={28}
+        tint={isLight ? "light" : "dark"}
+        style={[styles.container, isLight && styles.containerLight]}
+      >
         <View style={[styles.row, isCompact && styles.rowStack]}>
           <View style={styles.inputBlock}>
-            <Text style={styles.label}>Expense name</Text>
+            <Text style={[styles.label, isLight && styles.labelLight]}>Expense name</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, isLight && styles.inputLight]}
               placeholder="Dinner with client"
-              placeholderTextColor="#64748B"
+              placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
               value={description}
               onChangeText={setDescription}
             />
           </View>
           <View style={[styles.inputBlock, styles.amountBlock, isCompact && styles.amountBlockCompact]}>
-            <Text style={styles.label}>Amount</Text>
+            <Text style={[styles.label, isLight && styles.labelLight]}>Amount</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, isLight && styles.inputLight]}
               placeholder="0.00"
-              placeholderTextColor="#64748B"
+              placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
               value={amount}
               onChangeText={setAmount}
               keyboardType="numeric"
@@ -128,11 +134,11 @@ export default function AddExpenseForm({ onAdd }: Props) {
 
         <View style={styles.row}>
           <View style={styles.inputBlock}>
-            <Text style={styles.label}>Category</Text>
+            <Text style={[styles.label, isLight && styles.labelLight]}>Category</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, isLight && styles.inputLight]}
               placeholder="Food, Bills, Transport"
-              placeholderTextColor="#64748B"
+              placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
               value={category}
               onChangeText={setCategory}
             />
@@ -140,22 +146,24 @@ export default function AddExpenseForm({ onAdd }: Props) {
         </View>
 
         <View style={styles.inputBlock}>
-          <Text style={styles.label}>Notes</Text>
+          <Text style={[styles.label, isLight && styles.labelLight]}>Notes</Text>
           <TextInput
-            style={[styles.input, styles.notesInput]}
+            style={[styles.input, styles.notesInput, isLight && styles.inputLight]}
             placeholder="Short context, merchant, or reminder"
-            placeholderTextColor="#64748B"
+            placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
             value={notes}
             onChangeText={setNotes}
             multiline
           />
         </View>
 
-        <View style={styles.receiptCard}>
+        <View style={[styles.receiptCard, isLight && styles.receiptCardLight]}>
           <View style={styles.receiptHeader}>
             <View>
-              <Text style={styles.receiptTitle}>Receipt image</Text>
-              <Text style={styles.receiptSubtitle}>
+              <Text style={[styles.receiptTitle, isLight && styles.receiptTitleLight]}>
+                Receipt image
+              </Text>
+              <Text style={[styles.receiptSubtitle, isLight && styles.receiptSubtitleLight]}>
                 Save a photo with this expense for future proof.
               </Text>
             </View>
@@ -186,12 +194,24 @@ export default function AddExpenseForm({ onAdd }: Props) {
           ) : (
             <TouchableOpacity
               activeOpacity={0.85}
-              style={styles.previewPlaceholder}
+              style={[styles.previewPlaceholder, isLight && styles.previewPlaceholderLight]}
               onPress={handlePickImage}
             >
               <Ionicons name="scan-outline" size={22} color="#38BDF8" />
-              <Text style={styles.previewPlaceholderTitle}>Tap to add receipt</Text>
-              <Text style={styles.previewPlaceholderText}>
+              <Text
+                style={[
+                  styles.previewPlaceholderTitle,
+                  isLight && styles.previewPlaceholderTitleLight,
+                ]}
+              >
+                Tap to add receipt
+              </Text>
+              <Text
+                style={[
+                  styles.previewPlaceholderText,
+                  isLight && styles.previewPlaceholderTextLight,
+                ]}
+              >
                 JPG and PNG receipts are supported
               </Text>
             </TouchableOpacity>
@@ -233,6 +253,10 @@ const styles = StyleSheet.create({
     gap: 12,
     overflow: "hidden",
   },
+  containerLight: {
+    borderColor: "rgba(148, 163, 184, 0.16)",
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+  },
   row: {
     flexDirection: "row",
     gap: 12,
@@ -257,6 +281,9 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     color: "#94A3B8",
   },
+  labelLight: {
+    color: "#64748B",
+  },
   input: {
     borderRadius: 16,
     paddingHorizontal: 14,
@@ -266,6 +293,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 23, 42, 0.9)",
     color: "#F8FAFC",
     fontSize: 15,
+  },
+  inputLight: {
+    borderColor: "rgba(148, 163, 184, 0.16)",
+    backgroundColor: "rgba(241, 245, 249, 0.96)",
+    color: "#0F172A",
   },
   notesInput: {
     minHeight: 92,
@@ -278,6 +310,10 @@ const styles = StyleSheet.create({
     borderColor: "rgba(148, 163, 184, 0.1)",
     backgroundColor: "rgba(9, 14, 25, 0.72)",
   },
+  receiptCardLight: {
+    borderColor: "rgba(148, 163, 184, 0.16)",
+    backgroundColor: "rgba(241, 245, 249, 0.92)",
+  },
   receiptHeader: {
     gap: 10,
   },
@@ -286,9 +322,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#F8FAFC",
   },
+  receiptTitleLight: {
+    color: "#0F172A",
+  },
   receiptSubtitle: {
     marginTop: 3,
     fontSize: 12,
+    color: "#64748B",
+  },
+  receiptSubtitleLight: {
     color: "#64748B",
   },
   previewShell: {
@@ -345,14 +387,24 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 23, 42, 0.56)",
     gap: 10,
   },
+  previewPlaceholderLight: {
+    borderColor: "rgba(148, 163, 184, 0.24)",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
+  },
   previewPlaceholderTitle: {
     color: "#E2E8F0",
     fontSize: 14,
     fontWeight: "800",
   },
+  previewPlaceholderTitleLight: {
+    color: "#0F172A",
+  },
   previewPlaceholderText: {
     color: "#64748B",
     fontSize: 12,
+  },
+  previewPlaceholderTextLight: {
+    color: "#64748B",
   },
   submitButton: {
     marginTop: 4,

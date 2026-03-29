@@ -19,6 +19,8 @@ import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -52,6 +54,7 @@ interface Props {
 }
 
 type InfoSheet = "terms" | "about" | null;
+type ThemeMode = "dark" | "light";
 
 const formatAmount = (amount: number) =>
   new Intl.NumberFormat("en-PH", {
@@ -76,9 +79,10 @@ export default function DashboardScreen({
   const isVeryCompact = width < 420;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const [activeTab, setActiveTab] = useState<"overview" | "stats" | "profile">(
-    "overview",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "stats" | "gallery" | "profile"
+  >("overview");
+  const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
   const [showAddForm, setShowAddForm] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | "All">(
     "All",
@@ -104,6 +108,7 @@ export default function DashboardScreen({
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [infoSheet, setInfoSheet] = useState<InfoSheet>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -203,6 +208,129 @@ export default function DashboardScreen({
     [categoryBreakdown],
   );
 
+  const trendStats = useMemo(() => {
+    const now = new Date();
+    const startOfCurrentWeek = new Date(now);
+    startOfCurrentWeek.setHours(0, 0, 0, 0);
+    startOfCurrentWeek.setDate(now.getDate() - now.getDay());
+
+    const startOfLastWeek = new Date(startOfCurrentWeek);
+    startOfLastWeek.setDate(startOfCurrentWeek.getDate() - 7);
+
+    const currentWeekTotal = expenses
+      .filter((expense) => {
+        const date = new Date(expense.date);
+        return date >= startOfCurrentWeek;
+      })
+      .reduce((sum, expense) => sum + expense.amount, 0);
+
+    const lastWeekTotal = expenses
+      .filter((expense) => {
+        const date = new Date(expense.date);
+        return date >= startOfLastWeek && date < startOfCurrentWeek;
+      })
+      .reduce((sum, expense) => sum + expense.amount, 0);
+
+    const averageExpense =
+      expenses.length > 0
+        ? expenses.reduce((sum, expense) => sum + expense.amount, 0) /
+          expenses.length
+        : 0;
+
+    const receiptCoverage =
+      expenses.length > 0
+        ? expenses.filter((expense) => expense.imageUrl).length / expenses.length
+        : 0;
+
+    const monthlyChange =
+      stats.lastMonth > 0
+        ? ((stats.thisMonth - stats.lastMonth) / stats.lastMonth) * 100
+        : stats.thisMonth > 0
+          ? 100
+          : 0;
+
+    return {
+      currentWeekTotal,
+      lastWeekTotal,
+      averageExpense,
+      receiptCoverage,
+      monthlyChange,
+    };
+  }, [expenses, stats.lastMonth, stats.thisMonth]);
+
+  const budgetAlert = useMemo(() => {
+    if (monthlyBudget <= 0) {
+      return {
+        tone: "neutral",
+        title: "Budget target missing",
+        message: "Add a monthly budget to unlock alerts and spending guidance.",
+      };
+    }
+
+    if (budgetUsage >= 1) {
+      return {
+        tone: "danger",
+        title: "Budget exceeded",
+        message: "You are over your monthly target. Review recent expenses and pause non-essential spending.",
+      };
+    }
+
+    if (budgetUsage >= 0.8) {
+      return {
+        tone: "warning",
+        title: "Budget warning",
+        message: "You are close to your monthly limit. Keep an eye on new spending this week.",
+      };
+    }
+
+    return {
+      tone: "success",
+      title: "Budget on track",
+      message: "Your spending is within the current budget target.",
+    };
+  }, [budgetUsage, monthlyBudget]);
+
+  const galleryExpenses = useMemo(
+    () => expenses.filter((expense) => expense.imageUrl),
+    [expenses],
+  );
+
+  const theme = useMemo(
+    () =>
+      themeMode === "dark"
+        ? {
+            safeBackground: "#020617",
+            cardBackground: "rgba(8, 15, 30, 0.78)",
+            cardBorder: "rgba(148, 163, 184, 0.08)",
+            mutedSurface: "rgba(15, 23, 42, 0.92)",
+            title: "#F8FAFC",
+            text: "#CBD5E1",
+            muted: "#94A3B8",
+            faint: "#64748B",
+            accent: "#7DD3FC",
+            hero: ["rgba(15,23,42,0.92)", "rgba(8,15,30,0.72)"] as [
+              string,
+              string,
+            ],
+          }
+        : {
+            safeBackground: "#F4F7FB",
+            cardBackground: "rgba(255, 255, 255, 0.94)",
+            cardBorder: "rgba(148, 163, 184, 0.16)",
+            mutedSurface: "rgba(241, 245, 249, 0.96)",
+            title: "#0F172A",
+            text: "#334155",
+            muted: "#475569",
+            faint: "#64748B",
+            accent: "#0284C7",
+            hero: ["rgba(255,255,255,0.98)", "rgba(226,232,240,0.92)"] as [
+              string,
+              string,
+            ],
+          },
+    [themeMode],
+  );
+
   const quickAdds = [
     { label: "Coffee", amount: 80, category: "Food" },
     { label: "Lunch", amount: 150, category: "Food" },
@@ -293,6 +421,76 @@ export default function DashboardScreen({
   ) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await onAddExpense(description, amount, category);
+  };
+
+  const handleExportReport = async () => {
+    setIsExporting(true);
+    try {
+      const summaryRows = [
+        ["Metric", "Value"],
+        ["Total expenses", formatAmount(stats.total)],
+        ["This month", formatAmount(stats.thisMonth)],
+        ["Last month", formatAmount(stats.lastMonth)],
+        ["Current week", formatAmount(trendStats.currentWeekTotal)],
+        ["Last week", formatAmount(trendStats.lastWeekTotal)],
+        ["Average expense", formatAmount(trendStats.averageExpense)],
+        [
+          "Receipt coverage",
+          `${Math.round(trendStats.receiptCoverage * 100)}%`,
+        ],
+      ];
+
+      const expenseRows = [
+        ["Date", "Description", "Category", "Amount", "Receipt"],
+        ...expenses.map((expense) => [
+          new Date(expense.date).toLocaleDateString(),
+          expense.description,
+          expense.category || "Uncategorized",
+          expense.amount.toFixed(2),
+          expense.imageUrl ? "Yes" : "No",
+        ]),
+      ];
+
+      const csv = [...summaryRows, [], ...expenseRows]
+        .map((row) =>
+          row
+            .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+            .join(","),
+        )
+        .join("\n");
+
+      if (Platform.OS === "web") {
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `eyegasto-report-${new Date()
+          .toISOString()
+          .slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      const fileUri = `${FileSystem.cacheDirectory}eyegasto-report-${Date.now()}.csv`;
+      await FileSystem.writeAsStringAsync(fileUri, csv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "text/csv",
+          dialogTitle: "Export expense report",
+        });
+      } else {
+        Alert.alert("Export ready", `Saved report to ${fileUri}`);
+      }
+    } catch (error) {
+      console.error("Failed to export report", error);
+      Alert.alert("Export failed", "We couldn't generate the report.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const startEditingExpense = (expense: Expense) => {
@@ -468,8 +666,8 @@ export default function DashboardScreen({
   } as const;
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" />
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.safeBackground }]}>
+      <StatusBar barStyle={themeMode === "dark" ? "light-content" : "dark-content"} />
 
       <View style={styles.backgroundOrbOne} />
       <View style={styles.backgroundOrbTwo} />
@@ -478,12 +676,31 @@ export default function DashboardScreen({
         <View style={styles.headerLeft}>
           {renderAvatar(40, 18)}
           <View>
-            <Text style={styles.headerTitle}>EyeGasto</Text>
-            <Text style={styles.headerSubtitle}>
+            <Text style={[styles.headerTitle, { color: theme.title }]}>EyeGasto</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.faint }]}>
               Smart expense tracking with saved receipt evidence.
             </Text>
           </View>
         </View>
+
+        <TouchableOpacity
+          style={[
+            styles.themeToggle,
+            { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder },
+          ]}
+          onPress={() =>
+            setThemeMode((value) => (value === "dark" ? "light" : "dark"))
+          }
+        >
+          <Ionicons
+            name={themeMode === "dark" ? "sunny-outline" : "moon-outline"}
+            size={16}
+            color={theme.accent}
+          />
+          <Text style={[styles.themeToggleText, { color: theme.title }]}>
+            {themeMode === "dark" ? "Light" : "Dark"}
+          </Text>
+        </TouchableOpacity>
 
         {!isCompact ? (
           <View style={styles.headerBadge}>
@@ -502,23 +719,32 @@ export default function DashboardScreen({
           {activeTab === "overview" ? (
             <>
               <LinearGradient
-                colors={["rgba(15,23,42,0.92)", "rgba(8,15,30,0.72)"]}
+                colors={theme.hero}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.heroCard}
+                style={[
+                  styles.heroCard,
+                  { borderColor: theme.cardBorder, backgroundColor: theme.cardBackground },
+                ]}
               >
-                <Text style={styles.heroEyebrow}>Today</Text>
-                <Text style={styles.heroTitle}>Track expenses and review activity in one place.</Text>
-                <Text style={styles.heroSubtitle}>
+                <Text style={[styles.heroEyebrow, { color: theme.accent }]}>Today</Text>
+                <Text style={[styles.heroTitle, { color: theme.title }]}>Track expenses and review activity in one place.</Text>
+                <Text style={[styles.heroSubtitle, { color: theme.muted }]}>
                   Add a receipt, update your budget, and scan recent entries without leaving the dashboard.
                 </Text>
               </LinearGradient>
 
-              <View style={[styles.panel, styles.addPanel]}>
+              <View
+                style={[
+                  styles.panel,
+                  styles.addPanel,
+                  { backgroundColor: theme.cardBackground, borderColor: theme.cardBorder },
+                ]}
+              >
                 <View style={[styles.panelHeader, isCompact && styles.panelHeaderStack]}>
                   <View>
-                    <Text style={styles.sectionTitle}>Add Expense</Text>
-                    <Text style={styles.sectionSubtitle}>
+                    <Text style={[styles.sectionTitle, { color: theme.title }]}>Add Expense</Text>
+                    <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
                       Save the amount, category, notes, and optional receipt.
                     </Text>
                   </View>
@@ -534,7 +760,9 @@ export default function DashboardScreen({
                   </TouchableOpacity>
                 </View>
 
-                {showAddForm ? <AddExpenseForm onAdd={onAddExpense} /> : null}
+                {showAddForm ? (
+                  <AddExpenseForm onAdd={onAddExpense} mode={themeMode} />
+                ) : null}
 
                 <ScrollView
                   horizontal
@@ -544,13 +772,21 @@ export default function DashboardScreen({
                   {quickAdds.map((item) => (
                     <TouchableOpacity
                       key={`${item.label}-${item.amount}`}
-                      style={styles.quickAddChip}
+                      style={[
+                        styles.quickAddChip,
+                        {
+                          backgroundColor: theme.mutedSurface,
+                          borderColor: theme.cardBorder,
+                        },
+                      ]}
                       onPress={() =>
                         handleQuickAdd(item.label, item.amount, item.category)
                       }
                     >
-                      <Text style={styles.quickAddChipLabel}>{item.label}</Text>
-                      <Text style={styles.quickAddChipAmount}>
+                      <Text style={[styles.quickAddChipLabel, { color: theme.title }]}>
+                        {item.label}
+                      </Text>
+                      <Text style={[styles.quickAddChipAmount, { color: theme.muted }]}>
                         {formatAmount(item.amount)}
                       </Text>
                     </TouchableOpacity>
@@ -558,11 +794,16 @@ export default function DashboardScreen({
                 </ScrollView>
               </View>
 
-              <View style={styles.panel}>
+              <View
+                style={[
+                  styles.panel,
+                  { backgroundColor: theme.cardBackground, borderColor: theme.cardBorder },
+                ]}
+              >
                 <View style={[styles.panelHeader, isCompact && styles.panelHeaderStack]}>
                   <View>
-                    <Text style={styles.sectionTitle}>Overview</Text>
-                    <Text style={styles.sectionSubtitle}>Monthly totals and budget status.</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.title }]}>Overview</Text>
+                    <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>Monthly totals and budget status.</Text>
                   </View>
                 </View>
 
@@ -572,27 +813,47 @@ export default function DashboardScreen({
                     amount={stats.lastMonth}
                     type="expense"
                     period="month"
+                    mode={themeMode}
                   />
                   <StatsCard
                     title="This Month"
                     amount={stats.thisMonth}
                     type="expense"
                     period="month"
+                    mode={themeMode}
                   />
                   <StatsCard
                     title="Total Expenses"
                     amount={stats.total}
                     type="expense"
                     period="total"
+                    mode={themeMode}
                   />
                 </View>
 
-                <View style={styles.budgetShell}>
+                <View
+                  style={[
+                    styles.budgetShell,
+                    {
+                      backgroundColor: theme.mutedSurface,
+                      borderColor: theme.cardBorder,
+                    },
+                  ]}
+                >
                   <View style={[styles.budgetHeader, isCompact && styles.budgetHeaderStack]}>
                     <View style={styles.budgetBlock}>
-                      <Text style={styles.budgetLabel}>Monthly budget</Text>
+                      <Text style={[styles.budgetLabel, { color: theme.muted }]}>
+                        Monthly budget
+                      </Text>
                       <TextInput
-                        style={styles.budgetInput}
+                        style={[
+                          styles.budgetInput,
+                          {
+                            backgroundColor: theme.cardBackground,
+                            borderColor: theme.cardBorder,
+                            color: theme.title,
+                          },
+                        ]}
                         value={String(monthlyBudget)}
                         onChangeText={(value) =>
                           setMonthlyBudget(
@@ -604,8 +865,10 @@ export default function DashboardScreen({
                       />
                     </View>
                     <View style={styles.budgetSummary}>
-                      <Text style={styles.budgetLabel}>Spent so far</Text>
-                      <Text style={styles.budgetValue}>
+                      <Text style={[styles.budgetLabel, { color: theme.muted }]}>
+                        Spent so far
+                      </Text>
+                      <Text style={[styles.budgetValue, { color: theme.title }]}>
                         {formatAmount(stats.thisMonth)}
                       </Text>
                     </View>
@@ -622,14 +885,64 @@ export default function DashboardScreen({
                     />
                   </View>
                 </View>
+
+                <View
+                  style={[
+                    styles.budgetAlertCard,
+                    budgetAlert.tone === "danger"
+                      ? styles.budgetAlertDanger
+                      : budgetAlert.tone === "warning"
+                        ? styles.budgetAlertWarning
+                        : budgetAlert.tone === "success"
+                          ? styles.budgetAlertSuccess
+                          : styles.budgetAlertNeutral,
+                    {
+                      backgroundColor: theme.mutedSurface,
+                      borderColor: theme.cardBorder,
+                    },
+                  ]}
+                >
+                  <View style={styles.budgetAlertHeader}>
+                    <Ionicons
+                      name={
+                        budgetAlert.tone === "danger"
+                          ? "warning-outline"
+                          : budgetAlert.tone === "warning"
+                            ? "alert-circle-outline"
+                            : "shield-checkmark-outline"
+                      }
+                      size={18}
+                      color={
+                        budgetAlert.tone === "danger"
+                          ? "#F87171"
+                          : budgetAlert.tone === "warning"
+                            ? "#FBBF24"
+                            : "#34D399"
+                      }
+                    />
+                    <Text style={[styles.budgetAlertTitle, { color: theme.title }]}>
+                      {budgetAlert.title}
+                    </Text>
+                  </View>
+                  <Text style={[styles.budgetAlertText, { color: theme.muted }]}>
+                    {budgetAlert.message}
+                  </Text>
+                </View>
               </View>
 
               <View style={[styles.workspaceRow, isCompact && styles.workspaceColumn]}>
-                <View style={[styles.panel, styles.recentPanel, isCompact && styles.fullWidthPanel]}>
+                <View
+                  style={[
+                    styles.panel,
+                    styles.recentPanel,
+                    isCompact && styles.fullWidthPanel,
+                    { backgroundColor: theme.cardBackground, borderColor: theme.cardBorder },
+                  ]}
+                >
                   <View style={[styles.panelHeader, isCompact && styles.panelHeaderStack]}>
                     <View>
-                      <Text style={styles.sectionTitleLarge}>Recent Expenses</Text>
-                      <Text style={styles.sectionSubtitle}>
+                      <Text style={[styles.sectionTitleLarge, { color: theme.title }]}>Recent Expenses</Text>
+                      <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
                         Search and review your latest entries.
                       </Text>
                     </View>
@@ -642,9 +955,16 @@ export default function DashboardScreen({
                   </View>
 
                   <TextInput
-                    style={styles.searchInput}
+                    style={[
+                      styles.searchInput,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                        color: theme.title,
+                      },
+                    ]}
                     placeholder="Search expenses, categories, or notes"
-                    placeholderTextColor="#64748B"
+                    placeholderTextColor={theme.faint}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                   />
@@ -660,6 +980,10 @@ export default function DashboardScreen({
                         style={[
                           styles.categoryChip,
                           styles.categoryChipFixed,
+                          {
+                            backgroundColor: theme.mutedSurface,
+                            borderColor: theme.cardBorder,
+                          },
                           selectedCategory === category &&
                             styles.categoryChipActive,
                         ]}
@@ -670,6 +994,7 @@ export default function DashboardScreen({
                         <Text
                           style={[
                             styles.categoryChipText,
+                            { color: theme.faint },
                             selectedCategory === category &&
                               styles.categoryChipTextActive,
                           ]}
@@ -684,6 +1009,7 @@ export default function DashboardScreen({
                     expenses={displayedExpenses}
                     onDelete={onDeleteExpense}
                     onEdit={startEditingExpense}
+                    mode={themeMode}
                   />
 
                   {visibleExpenses.length > 5 && !searchQuery.trim() ? (
@@ -691,7 +1017,7 @@ export default function DashboardScreen({
                       style={styles.showAllButton}
                       onPress={() => setShowAllExpenses((value) => !value)}
                     >
-                      <Text style={styles.showAllButtonText}>
+                      <Text style={[styles.showAllButtonText, { color: theme.accent }]}>
                         {showAllExpenses
                           ? "Show less"
                           : `View all ${visibleExpenses.length} expenses`}
@@ -705,40 +1031,47 @@ export default function DashboardScreen({
                   ) : null}
                 </View>
 
-                <View style={[styles.panel, styles.signalPanel, isCompact && styles.fullWidthPanel]}>
-                  <Text style={styles.sectionTitle}>Insights</Text>
-                  <Text style={styles.sectionSubtitle}>
+                <View
+                  style={[
+                    styles.panel,
+                    styles.signalPanel,
+                    isCompact && styles.fullWidthPanel,
+                    { backgroundColor: theme.cardBackground, borderColor: theme.cardBorder },
+                  ]}
+                >
+                  <Text style={[styles.sectionTitle, { color: theme.title }]}>Insights</Text>
+                  <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
                     Quick context from your current expense activity.
                   </Text>
 
-                  <View style={styles.signalCard}>
-                    <Text style={styles.signalLabel}>Top category</Text>
-                    <Text style={styles.signalValue}>
+                  <View style={[styles.signalCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                    <Text style={[styles.signalLabel, { color: theme.faint }]}>Top category</Text>
+                    <Text style={[styles.signalValue, { color: theme.title }]}>
                       {topCategory ? topCategory[0] : "No data yet"}
                     </Text>
-                    <Text style={styles.signalMeta}>
+                    <Text style={[styles.signalMeta, { color: theme.muted }]}>
                       {topCategory ? formatAmount(topCategory[1]) : "Add expenses"}
                     </Text>
                   </View>
 
-                  <View style={styles.signalCard}>
-                    <Text style={styles.signalLabel}>Receipts saved</Text>
-                    <Text style={styles.signalValue}>
+                  <View style={[styles.signalCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                    <Text style={[styles.signalLabel, { color: theme.faint }]}>Receipts saved</Text>
+                    <Text style={[styles.signalValue, { color: theme.title }]}>
                       {expenses.filter((expense) => expense.imageUrl).length}
                     </Text>
-                    <Text style={styles.signalMeta}>
+                    <Text style={[styles.signalMeta, { color: theme.muted }]}>
                       Entries with photo proof attached
                     </Text>
                   </View>
 
-                  <View style={styles.signalCard}>
-                    <Text style={styles.signalLabel}>Member since</Text>
-                    <Text style={styles.signalValue}>
+                  <View style={[styles.signalCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                    <Text style={[styles.signalLabel, { color: theme.faint }]}>Member since</Text>
+                    <Text style={[styles.signalValue, { color: theme.title }]}>
                       {user.createdAt
                         ? new Date(user.createdAt).toLocaleDateString()
                         : "Today"}
                     </Text>
-                    <Text style={styles.signalMeta}>{user.email}</Text>
+                    <Text style={[styles.signalMeta, { color: theme.muted }]}>{user.email}</Text>
                   </View>
                 </View>
               </View>
@@ -746,27 +1079,80 @@ export default function DashboardScreen({
           ) : null}
 
           {activeTab === "stats" ? (
-              <View style={styles.panel}>
+              <View
+                style={[
+                  styles.panel,
+                  { backgroundColor: theme.cardBackground, borderColor: theme.cardBorder },
+                ]}
+              >
                 <View style={[styles.panelHeader, isCompact && styles.panelHeaderStack]}>
                 <View>
-                  <Text style={styles.sectionTitleLarge}>Expenses Graph</Text>
-                  <Text style={styles.sectionSubtitle}>Category totals for the current data set.</Text>
+                  <Text style={[styles.sectionTitleLarge, { color: theme.title }]}>Analytics</Text>
+                  <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>Trends, category totals, and export tools.</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.exportButton, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}
+                  onPress={handleExportReport}
+                  disabled={isExporting}
+                >
+                  <Ionicons name="download-outline" size={16} color={theme.accent} />
+                  <Text style={[styles.exportButtonText, { color: theme.title }]}>
+                    {isExporting ? "Exporting..." : "Export CSV"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.statsSummaryRow}>
+                <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                  <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>This month</Text>
+                  <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
+                    {formatAmount(stats.thisMonth)}
+                  </Text>
+                </View>
+                <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                  <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>Last month</Text>
+                  <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
+                    {formatAmount(stats.lastMonth)}
+                  </Text>
                 </View>
               </View>
 
               <View style={styles.statsSummaryRow}>
-                <View style={styles.statsSummaryCard}>
-                  <Text style={styles.statsSummaryLabel}>This month</Text>
-                  <Text style={styles.statsSummaryValue}>
-                    {formatAmount(stats.thisMonth)}
+                <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                  <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>This week</Text>
+                  <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
+                    {formatAmount(trendStats.currentWeekTotal)}
                   </Text>
                 </View>
-                <View style={styles.statsSummaryCard}>
-                  <Text style={styles.statsSummaryLabel}>Last month</Text>
-                  <Text style={styles.statsSummaryValue}>
-                    {formatAmount(stats.lastMonth)}
+                <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                  <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>Week before</Text>
+                  <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
+                    {formatAmount(trendStats.lastWeekTotal)}
                   </Text>
                 </View>
+              </View>
+
+              <View style={styles.statsSummaryRow}>
+                <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                  <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>Average expense</Text>
+                  <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
+                    {formatAmount(trendStats.averageExpense)}
+                  </Text>
+                </View>
+                <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                  <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>Monthly trend</Text>
+                  <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
+                    {trendStats.monthlyChange >= 0 ? "+" : ""}
+                    {trendStats.monthlyChange.toFixed(0)}%
+                  </Text>
+                </View>
+              </View>
+
+              <View style={[styles.trendHighlightCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                <Text style={[styles.sectionTitle, { color: theme.title }]}>Trend Summary</Text>
+                <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
+                  Receipt coverage is {Math.round(trendStats.receiptCoverage * 100)}% and your average expense is {formatAmount(trendStats.averageExpense)}.
+                </Text>
               </View>
 
               {graphEntries.length === 0 ? (
@@ -780,7 +1166,16 @@ export default function DashboardScreen({
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={isCompact ? styles.graphScrollContent : undefined}
                 >
-                <View style={[styles.graphShell, isCompact && styles.graphShellCompact]}>
+                <View
+                  style={[
+                    styles.graphShell,
+                    isCompact && styles.graphShellCompact,
+                    {
+                      backgroundColor: theme.mutedSurface,
+                      borderColor: theme.cardBorder,
+                    },
+                  ]}
+                >
                   {graphEntries.map(([category, total], index) => {
                     const max = Math.max(...graphEntries.map(([, value]) => value), 1);
                     const height = Math.max((total / max) * 210, 26);
@@ -795,10 +1190,15 @@ export default function DashboardScreen({
 
                     return (
                       <View key={category} style={[styles.graphColumn, isCompact && styles.graphColumnCompact]}>
-                        <Text style={styles.graphValue}>
+                        <Text style={[styles.graphValue, { color: theme.accent }]}>
                           {formatAmount(total)}
                         </Text>
-                        <View style={styles.graphTrack}>
+                        <View
+                          style={[
+                            styles.graphTrack,
+                            { backgroundColor: theme.cardBackground },
+                          ]}
+                        >
                           <LinearGradient
                             colors={barColors as [string, string, ...string[]]}
                             start={{ x: 0, y: 0 }}
@@ -806,7 +1206,7 @@ export default function DashboardScreen({
                             style={[styles.graphBar, { height }]}
                           />
                         </View>
-                        <Text style={styles.graphLabel} numberOfLines={2}>
+                        <Text style={[styles.graphLabel, { color: theme.title }]} numberOfLines={2}>
                           {category}
                         </Text>
                       </View>
@@ -818,26 +1218,108 @@ export default function DashboardScreen({
             </View>
           ) : null}
 
+          {activeTab === "gallery" ? (
+            <View
+              style={[
+                styles.panel,
+                { backgroundColor: theme.cardBackground, borderColor: theme.cardBorder },
+              ]}
+            >
+              <View style={[styles.panelHeader, isCompact && styles.panelHeaderStack]}>
+                <View>
+                  <Text style={[styles.sectionTitleLarge, { color: theme.title }]}>Receipt Gallery</Text>
+                  <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
+                    Review every uploaded proof in one place.
+                  </Text>
+                </View>
+                <View style={[styles.galleryCountBadge, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                  <Text style={[styles.galleryCountText, { color: theme.title }]}>
+                    {galleryExpenses.length} saved
+                  </Text>
+                </View>
+              </View>
+
+              {galleryExpenses.length === 0 ? (
+                <Text style={[styles.emptyGraphText, { color: theme.faint }]}>
+                  No receipt images yet. Add one when creating or editing an expense.
+                </Text>
+              ) : (
+                <View style={styles.galleryGrid}>
+                  {galleryExpenses.map((expense) => (
+                    <TouchableOpacity
+                      key={expense.id}
+                      style={[
+                        styles.galleryCard,
+                        isCompact && styles.galleryCardCompact,
+                        { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder },
+                      ]}
+                      onPress={() => startEditingExpense(expense)}
+                      activeOpacity={0.86}
+                    >
+                      <Image
+                        source={{ uri: expense.imageUrl! }}
+                        style={styles.galleryImage}
+                        contentFit="cover"
+                      />
+                      <Text style={[styles.galleryTitle, { color: theme.title }]} numberOfLines={1}>
+                        {expense.description}
+                      </Text>
+                      <Text style={[styles.galleryMeta, { color: theme.faint }]} numberOfLines={1}>
+                        {formatAmount(expense.amount)} · {expense.category || "Uncategorized"}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          ) : null}
+
           {activeTab === "profile" ? (
             <>
-              <View style={styles.panel}>
-                <Text style={styles.sectionTitle}>Profile</Text>
-                <Text style={styles.sectionSubtitle}>Manage your account, photo, and security details.</Text>
+              <View
+                style={[
+                  styles.panel,
+                  { backgroundColor: theme.cardBackground, borderColor: theme.cardBorder },
+                ]}
+              >
+                <Text style={[styles.sectionTitle, { color: theme.title }]}>Profile</Text>
+                <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
+                  Manage your account, photo, and security details.
+                </Text>
 
-                <View style={styles.profileCard}>
+                <View
+                  style={[
+                    styles.profileCard,
+                    { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder },
+                  ]}
+                >
                   {isEditingProfile ? (
                     <>
                       <TextInput
-                        style={styles.profileInput}
+                        style={[
+                          styles.profileInput,
+                          {
+                            backgroundColor: theme.cardBackground,
+                            borderColor: theme.cardBorder,
+                            color: theme.title,
+                          },
+                        ]}
                         placeholder="Name"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={theme.faint}
                         value={editName}
                         onChangeText={setEditName}
                       />
                       <TextInput
-                        style={styles.profileInput}
+                        style={[
+                          styles.profileInput,
+                          {
+                            backgroundColor: theme.cardBackground,
+                            borderColor: theme.cardBorder,
+                            color: theme.title,
+                          },
+                        ]}
                         placeholder="Email"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={theme.faint}
                         value={editEmail}
                         onChangeText={setEditEmail}
                       />
@@ -878,9 +1360,13 @@ export default function DashboardScreen({
                         </TouchableOpacity>
 
                         <View style={styles.profileCopy}>
-                          <Text style={styles.profileName}>{user.name}</Text>
-                          <Text style={styles.profileEmail}>{user.email}</Text>
-                          <Text style={styles.profileMeta}>
+                          <Text style={[styles.profileName, { color: theme.title }]}>
+                            {user.name}
+                          </Text>
+                          <Text style={[styles.profileEmail, { color: theme.text }]}>
+                            {user.email}
+                          </Text>
+                          <Text style={[styles.profileMeta, { color: theme.accent }]}>
                             Logged in since{" "}
                             {user.createdAt
                               ? new Date(user.createdAt).toLocaleDateString()
@@ -914,7 +1400,12 @@ export default function DashboardScreen({
                 </View>
 
                 {showPasswordFields ? (
-                  <View style={styles.passwordCard}>
+                  <View
+                    style={[
+                      styles.passwordCard,
+                      { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder },
+                    ]}
+                  >
                     {passwordSuccess ? (
                       <Text style={styles.passwordSuccess}>{passwordSuccess}</Text>
                     ) : null}
@@ -922,25 +1413,46 @@ export default function DashboardScreen({
                       <Text style={styles.passwordError}>{passwordError}</Text>
                     ) : null}
                     <TextInput
-                      style={styles.profileInput}
+                      style={[
+                        styles.profileInput,
+                        {
+                          backgroundColor: theme.cardBackground,
+                          borderColor: theme.cardBorder,
+                          color: theme.title,
+                        },
+                      ]}
                       placeholder="Current password"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor={theme.faint}
                       secureTextEntry
                       value={oldPassword}
                       onChangeText={setOldPassword}
                     />
                     <TextInput
-                      style={styles.profileInput}
+                      style={[
+                        styles.profileInput,
+                        {
+                          backgroundColor: theme.cardBackground,
+                          borderColor: theme.cardBorder,
+                          color: theme.title,
+                        },
+                      ]}
                       placeholder="New password"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor={theme.faint}
                       secureTextEntry
                       value={newPassword}
                       onChangeText={setNewPassword}
                     />
                     <TextInput
-                      style={styles.profileInput}
+                      style={[
+                        styles.profileInput,
+                        {
+                          backgroundColor: theme.cardBackground,
+                          borderColor: theme.cardBorder,
+                          color: theme.title,
+                        },
+                      ]}
                       placeholder="Confirm new password"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor={theme.faint}
                       secureTextEntry
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
@@ -962,17 +1474,31 @@ export default function DashboardScreen({
                 ) : null}
               </View>
 
-              <View style={styles.panel}>
-                <Text style={styles.sectionTitle}>Legal and App Info</Text>
-                <Text style={styles.sectionSubtitle}>Terms and product information for the app.</Text>
+              <View
+                style={[
+                  styles.panel,
+                  { backgroundColor: theme.cardBackground, borderColor: theme.cardBorder },
+                ]}
+              >
+                <Text style={[styles.sectionTitle, { color: theme.title }]}>
+                  Legal and App Info
+                </Text>
+                <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
+                  Terms and product information for the app.
+                </Text>
 
                 <TouchableOpacity
-                  style={styles.legalRow}
+                  style={[
+                    styles.legalRow,
+                    { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder },
+                  ]}
                   onPress={() => setInfoSheet("terms")}
                 >
                   <View>
-                    <Text style={styles.legalTitle}>Terms of Agreement / Use</Text>
-                    <Text style={styles.legalSubtitle}>
+                    <Text style={[styles.legalTitle, { color: theme.title }]}>
+                      Terms of Agreement / Use
+                    </Text>
+                    <Text style={[styles.legalSubtitle, { color: theme.muted }]}>
                       Privacy, storage, and acceptable receipt uploads.
                     </Text>
                   </View>
@@ -984,12 +1510,17 @@ export default function DashboardScreen({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.legalRow}
+                  style={[
+                    styles.legalRow,
+                    { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder },
+                  ]}
                   onPress={() => setInfoSheet("about")}
                 >
                   <View>
-                    <Text style={styles.legalTitle}>About EyeGasto</Text>
-                    <Text style={styles.legalSubtitle}>
+                    <Text style={[styles.legalTitle, { color: theme.title }]}>
+                      About EyeGasto
+                    </Text>
+                    <Text style={[styles.legalSubtitle, { color: theme.muted }]}>
                       Product purpose and what makes this tracker different.
                     </Text>
                   </View>
@@ -1019,12 +1550,17 @@ export default function DashboardScreen({
 
       <BlurView
         intensity={26}
-        tint="dark"
-        style={[styles.bottomNav, isCompact && styles.bottomNavCompact]}
+        tint={themeMode === "light" ? "light" : "dark"}
+        style={[
+          styles.bottomNav,
+          isCompact && styles.bottomNavCompact,
+          { borderColor: theme.cardBorder, backgroundColor: theme.cardBackground },
+        ]}
       >
         {[
           { key: "overview", icon: "grid-outline", label: "Overview" },
           { key: "stats", icon: "stats-chart-outline", label: "Stats" },
+          { key: "gallery", icon: "images-outline", label: "Gallery" },
           { key: "profile", icon: "person-circle-outline", label: "Profile" },
         ].map((item) => {
           const active = activeTab === item.key;
@@ -1037,9 +1573,16 @@ export default function DashboardScreen({
               <Ionicons
                 name={item.icon as any}
                 size={20}
-                color={active ? "#E0F2FE" : "#64748B"}
+                color={active ? theme.accent : theme.faint}
               />
-              <Text style={[styles.navLabel, active && styles.navLabelActive]}>
+              <Text
+                style={[
+                  styles.navLabel,
+                  { color: theme.faint },
+                  active && styles.navLabelActive,
+                  active && { color: theme.title },
+                ]}
+              >
                 {item.label}
               </Text>
             </TouchableOpacity>
@@ -1056,16 +1599,23 @@ export default function DashboardScreen({
         <View style={styles.modalBackdrop}>
           <BlurView
             intensity={36}
-            tint="dark"
-            style={[styles.modalCard, isCompact && styles.modalCardCompact]}
+            tint={themeMode === "light" ? "light" : "dark"}
+            style={[
+              styles.modalCard,
+              isCompact && styles.modalCardCompact,
+              { backgroundColor: theme.cardBackground, borderColor: theme.cardBorder },
+            ]}
           >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Expense</Text>
+              <Text style={[styles.modalTitle, { color: theme.title }]}>Edit Expense</Text>
               <TouchableOpacity
-                style={styles.modalCloseButton}
+                style={[
+                  styles.modalCloseButton,
+                  { backgroundColor: theme.mutedSurface },
+                ]}
                 onPress={closeEditingExpense}
               >
-                <Ionicons name="close" size={18} color="#E2E8F0" />
+                <Ionicons name="close" size={18} color={theme.title} />
               </TouchableOpacity>
             </View>
 
@@ -1076,43 +1626,75 @@ export default function DashboardScreen({
               keyboardShouldPersistTaps="handled"
             >
               <TextInput
-                style={styles.profileInput}
+                style={[
+                  styles.profileInput,
+                  {
+                    backgroundColor: theme.mutedSurface,
+                    borderColor: theme.cardBorder,
+                    color: theme.title,
+                  },
+                ]}
                 placeholder="Description"
-                placeholderTextColor="#64748B"
+                placeholderTextColor={theme.faint}
                 value={editDescription}
                 onChangeText={setEditDescription}
               />
               <TextInput
-                style={styles.profileInput}
+                style={[
+                  styles.profileInput,
+                  {
+                    backgroundColor: theme.mutedSurface,
+                    borderColor: theme.cardBorder,
+                    color: theme.title,
+                  },
+                ]}
                 placeholder="Amount"
-                placeholderTextColor="#64748B"
+                placeholderTextColor={theme.faint}
                 value={editAmount}
                 onChangeText={setEditAmount}
                 keyboardType="numeric"
               />
               <TextInput
-                style={styles.profileInput}
+                style={[
+                  styles.profileInput,
+                  {
+                    backgroundColor: theme.mutedSurface,
+                    borderColor: theme.cardBorder,
+                    color: theme.title,
+                  },
+                ]}
                 placeholder="Category"
-                placeholderTextColor="#64748B"
+                placeholderTextColor={theme.faint}
                 value={editCategory}
                 onChangeText={setEditCategory}
               />
               <TextInput
-                style={[styles.profileInput, styles.modalNotes]}
+                style={[
+                  styles.profileInput,
+                  styles.modalNotes,
+                  {
+                    backgroundColor: theme.mutedSurface,
+                    borderColor: theme.cardBorder,
+                    color: theme.title,
+                  },
+                ]}
                 placeholder="Notes"
-                placeholderTextColor="#64748B"
+                placeholderTextColor={theme.faint}
                 value={editNotes}
                 onChangeText={setEditNotes}
                 multiline
               />
 
               <TouchableOpacity
-                style={styles.legalRow}
+                style={[
+                  styles.legalRow,
+                  { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder },
+                ]}
                 onPress={pickExpenseReceipt}
               >
                 <View>
-                  <Text style={styles.legalTitle}>Receipt image</Text>
-                  <Text style={styles.legalSubtitle}>
+                  <Text style={[styles.legalTitle, { color: theme.title }]}>Receipt image</Text>
+                  <Text style={[styles.legalSubtitle, { color: theme.muted }]}>
                     Upload or replace the saved receipt for this expense.
                   </Text>
                 </View>
@@ -1136,7 +1718,13 @@ export default function DashboardScreen({
             ) : null}
             </ScrollView>
 
-            <View style={[styles.modalFooter, isVeryCompact && styles.modalActionsStack]}>
+            <View
+              style={[
+                styles.modalFooter,
+                isVeryCompact && styles.modalActionsStack,
+                { borderTopColor: theme.cardBorder },
+              ]}
+            >
               <TouchableOpacity
                 style={styles.secondaryButton}
                 onPress={closeEditingExpense}
@@ -1165,11 +1753,18 @@ export default function DashboardScreen({
         onRequestClose={() => setInfoSheet(null)}
       >
         <View style={styles.modalBackdrop}>
-          <BlurView intensity={34} tint="dark" style={styles.infoCard}>
-            <Text style={styles.modalTitle}>
+          <BlurView
+            intensity={34}
+            tint={themeMode === "light" ? "light" : "dark"}
+            style={[
+              styles.infoCard,
+              { backgroundColor: theme.cardBackground, borderColor: theme.cardBorder },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.title }]}>
               {infoSheet ? infoContent[infoSheet].title : ""}
             </Text>
-            <Text style={styles.infoBody}>
+            <Text style={[styles.infoBody, { color: theme.text }]}>
               {infoSheet ? infoContent[infoSheet].body : ""}
             </Text>
             <TouchableOpacity
@@ -1242,6 +1837,19 @@ const styles = StyleSheet.create({
     color: "#CBD5E1",
     textTransform: "uppercase",
     letterSpacing: 0.9,
+  },
+  themeToggle: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  themeToggleText: {
+    fontSize: 12,
+    fontWeight: "800",
   },
   avatarFallback: { alignItems: "center", justifyContent: "center" },
   avatarText: { color: "#020617", fontWeight: "900" },
@@ -1386,6 +1994,30 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(30, 41, 59, 0.9)",
   },
   budgetFill: { height: "100%", borderRadius: 999 },
+  budgetAlertCard: {
+    marginTop: 14,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+  },
+  budgetAlertHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  budgetAlertTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  budgetAlertText: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  budgetAlertDanger: {},
+  budgetAlertWarning: {},
+  budgetAlertSuccess: {},
+  budgetAlertNeutral: {},
   workspaceRow: { flexDirection: "row", gap: 16, flexWrap: "wrap" },
   workspaceColumn: { flexDirection: "column" },
   recentPanel: { flex: 2, minWidth: 320 },
@@ -1486,6 +2118,25 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#F8FAFC",
   },
+  exportButton: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  exportButtonText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  trendHighlightCard: {
+    marginTop: 14,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+  },
   graphShell: {
     marginTop: 18,
     minHeight: 340,
@@ -1535,6 +2186,46 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   emptyGraphText: { marginTop: 18, color: "#94A3B8", fontSize: 14, lineHeight: 22 },
+  galleryCountBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderWidth: 1,
+  },
+  galleryCountText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  galleryGrid: {
+    marginTop: 18,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  galleryCard: {
+    width: "31%",
+    minWidth: 180,
+    borderRadius: 18,
+    padding: 10,
+    borderWidth: 1,
+  },
+  galleryCardCompact: {
+    width: "100%",
+  },
+  galleryImage: {
+    width: "100%",
+    height: 150,
+    borderRadius: 14,
+  },
+  galleryTitle: {
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  galleryMeta: {
+    marginTop: 4,
+    fontSize: 12,
+  },
   profileCard: {
     marginTop: 16,
     borderRadius: 20,

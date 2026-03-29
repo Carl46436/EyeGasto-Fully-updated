@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -21,18 +21,9 @@ export default function ErrorAlert({
   onDismiss,
 }: ErrorAlertProps) {
   const [visible, setVisible] = useState(true);
-  const fadeAnim = new Animated.Value(1);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
-    if (duration) {
-      const timer = setTimeout(() => {
-        dismiss();
-      }, duration);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  const dismiss = () => {
+  const dismiss = useCallback(() => {
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 300,
@@ -41,7 +32,19 @@ export default function ErrorAlert({
       setVisible(false);
       onDismiss?.();
     });
-  };
+  }, [fadeAnim, onDismiss]);
+
+  useEffect(() => {
+    if (!duration) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      dismiss();
+    }, duration);
+
+    return () => clearTimeout(timer);
+  }, [dismiss, duration]);
 
   if (!visible) return null;
 
@@ -53,7 +56,7 @@ export default function ErrorAlert({
       <View style={[styles.alert, { backgroundColor }]}>
         <Text style={styles.message}>{message}</Text>
         <TouchableOpacity onPress={dismiss} style={styles.closeBtn}>
-          <Text style={styles.closeText}>✕</Text>
+          <Text style={styles.closeText}>X</Text>
         </TouchableOpacity>
       </View>
     </Animated.View>

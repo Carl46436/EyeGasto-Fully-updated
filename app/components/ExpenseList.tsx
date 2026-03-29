@@ -7,13 +7,20 @@ interface Props {
   expenses: Expense[];
   onDelete?: (id: string) => void;
   onEdit?: (expense: Expense) => void;
+  mode?: "dark" | "light";
 }
 
-export default function ExpenseList({ expenses, onDelete, onEdit }: Props) {
+export default function ExpenseList({
+  expenses,
+  onDelete,
+  onEdit,
+  mode = "dark",
+}: Props) {
+  const isLight = mode === "light";
   if (expenses.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No expenses yet</Text>
+        <Text style={[styles.emptyText, isLight && styles.emptyTextLight]}>No expenses yet</Text>
       </View>
     );
   }
@@ -53,9 +60,16 @@ export default function ExpenseList({ expenses, onDelete, onEdit }: Props) {
         <View key={dateLabel} style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionLabelBadge}>
-              <Text style={styles.sectionHeaderText}>{dateLabel}</Text>
+              <Text
+                style={[
+                  styles.sectionHeaderText,
+                  isLight && styles.sectionHeaderTextLight,
+                ]}
+              >
+                {dateLabel}
+              </Text>
             </View>
-            <View style={styles.sectionLine} />
+            <View style={[styles.sectionLine, isLight && styles.sectionLineLight]} />
           </View>
           {grouped[dateLabel].map((item) => (
             <ExpenseItem
@@ -66,6 +80,7 @@ export default function ExpenseList({ expenses, onDelete, onEdit }: Props) {
               category={item.category}
               notes={item.notes}
               imageUrl={item.imageUrl}
+              mode={mode}
               onDelete={onDelete ? () => onDelete(item.id) : undefined}
               onPress={onEdit ? () => onEdit(item) : undefined}
             />
@@ -104,11 +119,17 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1.3,
   },
+  sectionHeaderTextLight: {
+    color: "#0284C7",
+  },
   sectionLine: {
     flex: 1,
     height: 1,
     backgroundColor: "rgba(255, 255, 255, 0.05)",
     marginLeft: 10,
+  },
+  sectionLineLight: {
+    backgroundColor: "rgba(15, 23, 42, 0.08)",
   },
   emptyContainer: {
     paddingVertical: 40,
@@ -119,5 +140,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7280",
     fontWeight: "500",
+  },
+  emptyTextLight: {
+    color: "#64748B",
   },
 });

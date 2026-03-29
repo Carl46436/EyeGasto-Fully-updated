@@ -8,6 +8,7 @@ interface Props {
   amount: number;
   type: "expense" | "income";
   period: "month" | "total";
+  mode?: "dark" | "light";
 }
 
 const formatAmount = (amount: number) =>
@@ -17,14 +18,26 @@ const formatAmount = (amount: number) =>
     maximumFractionDigits: 2,
   }).format(amount);
 
-export default function StatsCard({ title, amount, type, period }: Props) {
+export default function StatsCard({
+  title,
+  amount,
+  type,
+  period,
+  mode = "dark",
+}: Props) {
   const isExpense = type === "expense";
   const accent = isExpense ? ["#7DD3FC", "#38BDF8"] : ["#86EFAC", "#34D399"];
+  const isLight = mode === "light";
 
   return (
     <BlurView intensity={26} tint="dark" style={styles.card}>
-      <View style={styles.inner}>
-        <Text style={styles.title}>{title}</Text>
+      <View
+        style={[
+          styles.inner,
+          isLight && styles.innerLight,
+        ]}
+      >
+        <Text style={[styles.title, isLight && styles.titleLight]}>{title}</Text>
         <LinearGradient
           colors={accent as [string, string, ...string[]]}
           start={{ x: 0, y: 0 }}
@@ -33,7 +46,7 @@ export default function StatsCard({ title, amount, type, period }: Props) {
         >
           <Text style={styles.amount}>{formatAmount(amount)}</Text>
         </LinearGradient>
-        <Text style={styles.metaLabel}>
+        <Text style={[styles.metaLabel, isLight && styles.metaLabelLight]}>
           {period === "total" ? "All recorded expenses" : "Live monthly total"}
         </Text>
       </View>
@@ -66,6 +79,10 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 4,
   },
+  innerLight: {
+    backgroundColor: "rgba(255,255,255,0.96)",
+    borderColor: "rgba(148, 163, 184, 0.16)",
+  },
   title: {
     fontSize: 12,
     color: "#64748B",
@@ -73,6 +90,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textTransform: "uppercase",
     letterSpacing: 1.1,
+  },
+  titleLight: {
+    color: "#64748B",
   },
   amountPill: {
     borderRadius: 14,
@@ -89,5 +109,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#475569",
     fontWeight: "600",
+  },
+  metaLabelLight: {
+    color: "#64748B",
   },
 });

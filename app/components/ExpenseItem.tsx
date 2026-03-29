@@ -13,6 +13,7 @@ import { Expense } from "../types/index";
 type Props = Omit<Expense, "id"> & {
   onDelete?: () => void;
   onPress?: () => void;
+  mode?: "dark" | "light";
 };
 
 const formatAmount = (amount: number) =>
@@ -31,10 +32,17 @@ export default function ExpenseItem({
   imageUrl,
   onDelete,
   onPress,
+  mode = "dark",
 }: Props) {
+  const isLight = mode === "light";
+
   return (
-    <BlurView intensity={24} tint="dark" style={styles.blurWrapper}>
-      <View style={styles.container}>
+    <BlurView
+      intensity={24}
+      tint={isLight ? "light" : "dark"}
+      style={styles.blurWrapper}
+    >
+      <View style={[styles.container, isLight && styles.containerLight]}>
         <TouchableOpacity
           style={styles.content}
           onPress={onPress}
@@ -54,15 +62,23 @@ export default function ExpenseItem({
 
           <View style={styles.details}>
             <View style={styles.titleRow}>
-              <Text style={styles.desc}>{description}</Text>
+              <Text style={[styles.desc, isLight && styles.descLight]}>
+                {description}
+              </Text>
               {category ? (
-                <View style={styles.categoryPill}>
-                  <Text style={styles.categoryText}>{category}</Text>
+                <View
+                  style={[styles.categoryPill, isLight && styles.categoryPillLight]}
+                >
+                  <Text
+                    style={[styles.categoryText, isLight && styles.categoryTextLight]}
+                  >
+                    {category}
+                  </Text>
                 </View>
               ) : null}
             </View>
 
-            <Text style={styles.date}>
+            <Text style={[styles.date, isLight && styles.dateLight]}>
               {new Date(date).toLocaleDateString([], {
                 month: "short",
                 day: "numeric",
@@ -75,25 +91,36 @@ export default function ExpenseItem({
             </Text>
 
             {notes ? (
-              <Text style={styles.notes} numberOfLines={2}>
+              <Text style={[styles.notes, isLight && styles.notesLight]} numberOfLines={2}>
                 {notes}
               </Text>
             ) : (
-              <Text style={styles.notesMuted}>No extra notes saved</Text>
+              <Text style={[styles.notesMuted, isLight && styles.notesMutedLight]}>
+                No extra notes saved
+              </Text>
             )}
           </View>
 
           <View style={styles.amountContainer}>
-            <Text style={styles.amount}>{formatAmount(amount)}</Text>
-            <Text style={styles.amountMeta}>
+            <Text style={[styles.amount, isLight && styles.amountLight]}>
+              {formatAmount(amount)}
+            </Text>
+            <Text style={[styles.amountMeta, isLight && styles.amountMetaLight]}>
               {imageUrl ? "Receipt saved" : "No receipt"}
             </Text>
           </View>
         </TouchableOpacity>
 
         <View style={styles.actions}>
-          <TouchableOpacity onPress={onPress} style={styles.actionButton}>
-            <Ionicons name="create-outline" size={18} color="#E2E8F0" />
+          <TouchableOpacity
+            onPress={onPress}
+            style={[styles.actionButton, isLight && styles.actionButtonLight]}
+          >
+            <Ionicons
+              name="create-outline"
+              size={18}
+              color={isLight ? "#334155" : "#E2E8F0"}
+            />
           </TouchableOpacity>
           <TouchableOpacity onPress={onDelete} style={styles.deleteButton}>
             <Ionicons name="trash-outline" size={18} color="#FCA5A5" />
@@ -119,6 +146,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.08)",
+  },
+  containerLight: {
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    borderColor: "rgba(148, 163, 184, 0.16)",
   },
   content: {
     flex: 1,
@@ -155,6 +186,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#F8FAFC",
   },
+  descLight: {
+    color: "#0F172A",
+  },
   categoryPill: {
     borderRadius: 999,
     paddingHorizontal: 10,
@@ -163,6 +197,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(56, 189, 248, 0.2)",
   },
+  categoryPillLight: {
+    backgroundColor: "rgba(2, 132, 199, 0.08)",
+    borderColor: "rgba(2, 132, 199, 0.18)",
+  },
   categoryText: {
     fontSize: 11,
     fontWeight: "700",
@@ -170,21 +208,33 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
+  categoryTextLight: {
+    color: "#0284C7",
+  },
   date: {
     marginTop: 4,
     fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
   },
+  dateLight: {
+    color: "#64748B",
+  },
   notes: {
     marginTop: 5,
     fontSize: 12,
     color: "#CBD5E1",
   },
+  notesLight: {
+    color: "#475569",
+  },
   notesMuted: {
     marginTop: 6,
     fontSize: 12,
     color: "#64748B",
+  },
+  notesMutedLight: {
+    color: "#94A3B8",
   },
   amountContainer: {
     alignItems: "flex-end",
@@ -196,11 +246,17 @@ const styles = StyleSheet.create({
     color: "#F8FAFC",
     textAlign: "right",
   },
+  amountLight: {
+    color: "#0F172A",
+  },
   amountMeta: {
     marginTop: 5,
     fontSize: 11,
     color: "#64748B",
     fontWeight: "600",
+  },
+  amountMetaLight: {
+    color: "#64748B",
   },
   actions: {
     gap: 6,
@@ -213,6 +269,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(30, 41, 59, 0.9)",
+  },
+  actionButtonLight: {
+    backgroundColor: "rgba(241, 245, 249, 0.96)",
   },
   deleteButton: {
     width: 34,
