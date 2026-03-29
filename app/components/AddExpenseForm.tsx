@@ -222,6 +222,7 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
           activeOpacity={0.9}
           onPress={handleSubmit}
           disabled={isSubmitting}
+          style={styles.submitWrap}
         >
           <LinearGradient
             colors={["#22D3EE", "#3B82F6", "#8B5CF6"]}
@@ -229,7 +230,9 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
             end={{ x: 1, y: 1 }}
             style={styles.submitButton}
           >
-            <Ionicons name="add-circle-outline" size={18} color="#020617" />
+            <View style={styles.submitIconPill}>
+              <Ionicons name="add" size={20} color="#020617" />
+            </View>
             <Text style={styles.submitButtonText}>
               {isSubmitting ? "Saving..." : "Save expense"}
             </Text>
@@ -410,10 +413,27 @@ const styles = StyleSheet.create({
     marginTop: 4,
     borderRadius: 16,
     paddingVertical: 14,
+    paddingHorizontal: 16,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
+    shadowColor: "#22D3EE",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.26,
+    shadowRadius: 18,
+    elevation: 7,
+  },
+  submitWrap: {
+    borderRadius: 16,
+  },
+  submitIconPill: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.5)",
   },
   submitButtonText: {
     color: "#020617",

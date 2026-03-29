@@ -74,6 +74,13 @@ const formatAmount = (amount: number) =>
     maximumFractionDigits: 2,
   }).format(amount);
 
+const formatChartAmount = (amount: number) =>
+  new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    maximumFractionDigits: 0,
+  }).format(amount);
+
 export default function DashboardScreen({
   user,
   expenses,
@@ -272,10 +279,45 @@ export default function DashboardScreen({
   const topCategory =
     Object.entries(categoryBreakdown).sort((a, b) => b[1] - a[1])[0] || null;
 
-  const graphEntries = useMemo(
-    () => Object.entries(categoryBreakdown).sort((a, b) => b[1] - a[1]),
-    [categoryBreakdown],
-  );
+  const graphEntries = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const weekTotals = [0, 0, 0, 0];
+
+    expenses.forEach((expense) => {
+      const date = new Date(expense.date);
+      if (
+        date.getMonth() !== currentMonth ||
+        date.getFullYear() !== currentYear
+      ) {
+        return;
+      }
+
+      const dayOfMonth = date.getDate();
+      const weekIndex =
+        dayOfMonth <= 7 ? 0 : dayOfMonth <= 14 ? 1 : dayOfMonth <= 21 ? 2 : 3;
+      weekTotals[weekIndex] += expense.amount;
+    });
+
+    return weekTotals.map((total, index) => [`W${index + 1}`, total] as const);
+  }, [expenses]);
+
+  const weeklyInsight = useMemo(() => {
+    const activeWeeks = graphEntries.filter(([, total]) => total > 0);
+    const highestWeek = [...graphEntries].sort((a, b) => b[1] - a[1])[0];
+    const averageWeeklySpend =
+      activeWeeks.length > 0
+        ? activeWeeks.reduce((sum, [, total]) => sum + total, 0) /
+          activeWeeks.length
+        : 0;
+
+    return {
+      highestWeek,
+      averageWeeklySpend,
+      activeWeeks: activeWeeks.length,
+    };
+  }, [graphEntries]);
 
   const trendStats = useMemo(() => {
     const now = new Date();
@@ -953,13 +995,25 @@ export default function DashboardScreen({
                     </Text>
                   </View>
                   <TouchableOpacity
-                    style={styles.iconToggle}
+                    style={[
+                      styles.iconToggle,
+                      {
+                        backgroundColor:
+                          showAddForm
+                            ? "rgba(34, 211, 238, 0.18)"
+                            : "rgba(30, 41, 59, 0.92)",
+                        borderColor:
+                          showAddForm
+                            ? "rgba(34, 211, 238, 0.42)"
+                            : theme.cardBorder,
+                      },
+                    ]}
                     onPress={() => setShowAddForm((value) => !value)}
                   >
                     <Ionicons
                       name={showAddForm ? "remove" : "add"}
-                      size={18}
-                      color="#E2E8F0"
+                      size={20}
+                      color={showAddForm ? "#67E8F9" : "#E2E8F0"}
                     />
                   </TouchableOpacity>
                 </View>
@@ -1342,7 +1396,9 @@ export default function DashboardScreen({
                 <View style={[styles.panelHeader, isCompact && styles.panelHeaderStack]}>
                 <View>
                   <Text style={[styles.sectionTitleLarge, { color: theme.title }]}>Analytics</Text>
-                  <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>Trends, category totals, and export tools.</Text>
+                  <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
+                    Weekly spending trend for the current month and export tools.
+                  </Text>
                 </View>
                 <TouchableOpacity
                   style={[styles.exportButton, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}
@@ -1404,10 +1460,8 @@ export default function DashboardScreen({
                         {renderSkeletonCard(12, 60)}
                         <View
                           style={[
-                            styles.graphTrack,
+                            styles.graphBarShell,
                             {
-                              backgroundColor: theme.cardBackground,
-                              maxWidth: 48,
                               height: 160,
                             },
                           ]}
@@ -1479,18 +1533,21 @@ export default function DashboardScreen({
                   </View>
 
                   <View style={[styles.trendHighlightCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.title }]}>Trend Summary</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.title }]}>Weekly Spending Summary</Text>
                     <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
-                      Receipt coverage is {Math.round(trendStats.receiptCoverage * 100)}% and your average expense is {formatAmount(trendStats.averageExpense)}.
+                      Highest spend week is {weeklyInsight.highestWeek?.[0] || "N/A"} at{" "}
+                      {formatAmount(weeklyInsight.highestWeek?.[1] || 0)}. Average
+                      active-week spend is {formatAmount(weeklyInsight.averageWeeklySpend)} across{" "}
+                      {weeklyInsight.activeWeeks} active weeks this month.
                     </Text>
                   </View>
                 </>
               )}
 
-              {!isExpensesLoading && graphEntries.length === 0 ? (
+              {!isExpensesLoading && graphEntries.every(([, total]) => total === 0) ? (
                 <Text style={styles.emptyGraphText}>
-                  No expenses yet. Add one in the overview tab to populate the
-                  graph.
+                  No spending recorded for the current month yet. Add a new
+                  expense to start the weekly trend chart.
                 </Text>
               ) : !isExpensesLoading ? (
                 <ScrollView
@@ -1508,42 +1565,88 @@ export default function DashboardScreen({
                     },
                   ]}
                 >
-                  {graphEntries.map(([category, total], index) => {
-                    const max = Math.max(...graphEntries.map(([, value]) => value), 1);
-                    const height = Math.max((total / max) * 210, 26);
-                    const gradients: Record<number, string[]> = {
-                      0: ["#22D3EE", "#3B82F6"],
-                      1: ["#34D399", "#10B981"],
-                      2: ["#F59E0B", "#FB7185"],
-                      3: ["#A78BFA", "#8B5CF6"],
-                    };
-                    const barColors =
-                      gradients[index] || ["#38BDF8", "#818CF8"];
+                  <View style={styles.graphHeader}>
+                    <Text style={[styles.graphTitle, { color: theme.title }]}>
+                      Weekly Spending Trend
+                    </Text>
+                    <Text style={[styles.graphSubtitle, { color: theme.faint }]}>
+                      Current Month
+                    </Text>
+                  </View>
 
-                    return (
-                      <View key={category} style={[styles.graphColumn, isCompact && styles.graphColumnCompact]}>
-                        <Text style={[styles.graphValue, { color: theme.accent }]}>
-                          {formatAmount(total)}
-                        </Text>
+                  <View style={styles.graphBody}>
+                    <View style={styles.graphYAxis}>
+                      {[1, 0.75, 0.5, 0.25, 0].map((step) => {
+                        const maxValue = Math.max(
+                          ...graphEntries.map(([, value]) => value),
+                          1,
+                        );
+                        const labelValue =
+                          step === 0 ? 0 : Math.ceil((maxValue * step) / 100) * 100;
+                        return (
+                          <Text
+                            key={`axis-${step}`}
+                            style={[styles.graphAxisLabel, { color: theme.faint }]}
+                          >
+                            {labelValue === 0 ? "0" : formatChartAmount(labelValue)}
+                          </Text>
+                        );
+                      })}
+                    </View>
+
+                    <View style={styles.graphPlotArea}>
+                      {[1, 0.75, 0.5, 0.25, 0].map((step, lineIndex) => (
                         <View
+                          key={`line-${lineIndex}`}
                           style={[
-                            styles.graphTrack,
-                            { backgroundColor: theme.cardBackground },
+                            styles.graphGridLine,
+                            {
+                              top: `${(1 - step) * 100}%`,
+                              borderColor:
+                                lineIndex === 1
+                                  ? "rgba(148, 163, 184, 0.45)"
+                                  : theme.cardBorder,
+                              borderStyle: lineIndex === 1 ? "dashed" : "solid",
+                            },
                           ]}
-                        >
-                          <LinearGradient
-                            colors={barColors as [string, string, ...string[]]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 0, y: 1 }}
-                            style={[styles.graphBar, { height }]}
-                          />
-                        </View>
-                        <Text style={[styles.graphLabel, { color: theme.title }]} numberOfLines={2}>
-                          {category}
-                        </Text>
+                        />
+                      ))}
+
+                      <View style={styles.graphColumnsRow}>
+                        {graphEntries.map(([dayLabel, total], index) => {
+                          const max = Math.max(...graphEntries.map(([, value]) => value), 1);
+                          const height = Math.max((total / max) * 210, total > 0 ? 32 : 12);
+                          const gradients: Record<number, string[]> = {
+                            0: ["#2F80ED", "#3B82F6"],
+                            1: ["#22C55E", "#34D399"],
+                            2: ["#F59E0B", "#FB923C"],
+                            3: ["#38BDF8", "#22D3EE"],
+                          };
+                          const barColors =
+                            gradients[index] || ["#38BDF8", "#818CF8"];
+
+                          return (
+                            <View key={dayLabel} style={styles.graphColumnCard}>
+                              <Text style={[styles.graphValue, { color: theme.title }]}>
+                                {formatChartAmount(total)}
+                              </Text>
+                              <View style={styles.graphBarShell}>
+                                <LinearGradient
+                                  colors={barColors as [string, string, ...string[]]}
+                                  start={{ x: 0, y: 0 }}
+                                  end={{ x: 0, y: 1 }}
+                                  style={[styles.graphBar, { height }]}
+                                />
+                              </View>
+                              <Text style={[styles.graphLabel, { color: theme.title }]}>
+                                {dayLabel}
+                              </Text>
+                            </View>
+                          );
+                        })}
                       </View>
-                    );
-                  })}
+                    </View>
+                  </View>
                 </View>
                 </ScrollView>
               ) : null}
@@ -2403,12 +2506,18 @@ const styles = StyleSheet.create({
     maxWidth: 520,
   },
   iconToggle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(30, 41, 59, 0.92)",
+    borderWidth: 1,
+    shadowColor: "#22D3EE",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 6,
   },
   quickAddRow: { paddingTop: 12, gap: 8 },
   quickAddChip: {
@@ -2692,14 +2801,11 @@ const styles = StyleSheet.create({
     marginTop: 18,
     minHeight: 340,
     borderRadius: 24,
-    padding: 18,
+    padding: 20,
     backgroundColor: "rgba(2, 6, 23, 0.58)",
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.06)",
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: 12,
+    gap: 14,
   },
   graphScrollContent: {
     paddingRight: 8,
@@ -2707,31 +2813,89 @@ const styles = StyleSheet.create({
   graphShellCompact: {
     minWidth: 560,
   },
+  graphHeader: {
+    gap: 2,
+    marginBottom: 4,
+  },
+  graphTitle: {
+    fontSize: 24,
+    fontWeight: "900",
+  },
+  graphSubtitle: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  graphBody: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 12,
+    minHeight: 270,
+  },
+  graphYAxis: {
+    width: 78,
+    justifyContent: "space-between",
+    paddingBottom: 28,
+    paddingTop: 4,
+  },
+  graphAxisLabel: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  graphPlotArea: {
+    flex: 1,
+    justifyContent: "space-between",
+    position: "relative",
+    paddingBottom: 8,
+  },
+  graphGridLine: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    borderTopWidth: 1,
+  },
+  graphColumnsRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 18,
+    paddingTop: 20,
+  },
   graphColumn: { flex: 1, alignItems: "center", justifyContent: "flex-end" },
   graphColumnCompact: {
     minWidth: 88,
   },
+  graphColumnCard: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    minWidth: 72,
+  },
   graphValue: {
     marginBottom: 10,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#CFFAFE",
+    fontSize: 14,
+    fontWeight: "900",
     textAlign: "center",
   },
-  graphTrack: {
+  graphBarShell: {
     width: "100%",
-    maxWidth: 62,
+    maxWidth: 84,
     height: 220,
     justifyContent: "flex-end",
-    borderRadius: 20,
-    backgroundColor: "rgba(15, 23, 42, 0.95)",
-    padding: 8,
+    alignItems: "center",
   },
-  graphBar: { width: "100%", borderRadius: 18 },
+  graphBar: {
+    width: "100%",
+    borderRadius: 18,
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 7,
+  },
   graphLabel: {
     marginTop: 12,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 16,
     fontWeight: "800",
     color: "#F8FAFC",
     textAlign: "center",
