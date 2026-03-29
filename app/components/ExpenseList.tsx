@@ -80,6 +80,7 @@ export default function ExpenseList({
               category={item.category}
               notes={item.notes}
               imageUrl={item.imageUrl}
+              isPending={item.isPending}
               mode={mode}
               onDelete={onDelete ? () => onDelete(item.id) : undefined}
               onPress={onEdit ? () => onEdit(item) : undefined}

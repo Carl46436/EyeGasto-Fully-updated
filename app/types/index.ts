@@ -17,4 +17,5 @@ export interface Expense {
   date: string | Date;
   imageUrl?: string | null;
   receiptPath?: string | null;
+  isPending?: boolean;
 }

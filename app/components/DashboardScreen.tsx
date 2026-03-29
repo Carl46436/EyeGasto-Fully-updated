@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  DimensionValue,
   Modal,
   Platform,
   SafeAreaView,
@@ -28,10 +29,12 @@ import AddExpenseForm from "./AddExpenseForm";
 import ExpenseList from "./ExpenseList";
 import StatsCard from "./StatsCard";
 import { Expense, User } from "../types/index";
+import storageService, { StorageKeys } from "../services/storageService";
 
 interface Props {
   user: User;
   expenses: Expense[];
+  isExpensesLoading?: boolean;
   onAddExpense: (
     description: string,
     amount: number,
@@ -55,6 +58,14 @@ interface Props {
 
 type InfoSheet = "terms" | "about" | null;
 type ThemeMode = "dark" | "light";
+type ExportFormat = "csv" | "json" | "summary";
+
+interface DashboardPreferences {
+  themeMode: ThemeMode;
+  monthlyBudget: number;
+  activeTab: "overview" | "stats" | "gallery" | "profile";
+  selectedCategory: string | "All";
+}
 
 const formatAmount = (amount: number) =>
   new Intl.NumberFormat("en-PH", {
@@ -66,6 +77,7 @@ const formatAmount = (amount: number) =>
 export default function DashboardScreen({
   user,
   expenses,
+  isExpensesLoading = false,
   onAddExpense,
   onDeleteExpense,
   onUpdateExpense,
@@ -109,6 +121,9 @@ export default function DashboardScreen({
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [infoSheet, setInfoSheet] = useState<InfoSheet>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isPreferencesReady, setIsPreferencesReady] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState<Expense | null>(null);
+  const [showExportOptions, setShowExportOptions] = useState(false);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -117,6 +132,60 @@ export default function DashboardScreen({
       useNativeDriver: true,
     }).start();
   }, [fadeAnim]);
+
+  useEffect(() => {
+    setEditName(user.name);
+    setEditEmail(user.email);
+  }, [user.email, user.name]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadPreferences = async () => {
+      const storedPreferences =
+        await storageService.getItem<DashboardPreferences>(
+          StorageKeys.DASHBOARD_PREFERENCES,
+        );
+
+      if (!active) {
+        return;
+      }
+
+      if (storedPreferences) {
+        setThemeMode(storedPreferences.themeMode ?? "dark");
+        setMonthlyBudget(storedPreferences.monthlyBudget ?? 10000);
+        setActiveTab(storedPreferences.activeTab ?? "overview");
+        setSelectedCategory(storedPreferences.selectedCategory ?? "All");
+      }
+
+      setIsPreferencesReady(true);
+    };
+
+    loadPreferences();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isPreferencesReady) {
+      return;
+    }
+
+    storageService.setItem(StorageKeys.DASHBOARD_PREFERENCES, {
+      themeMode,
+      monthlyBudget,
+      activeTab,
+      selectedCategory,
+    } satisfies DashboardPreferences);
+  }, [
+    activeTab,
+    isPreferencesReady,
+    monthlyBudget,
+    selectedCategory,
+    themeMode,
+  ]);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -367,6 +436,50 @@ export default function DashboardScreen({
     );
   };
 
+  const renderSkeletonCard = (height: number, widthValue?: DimensionValue) => (
+    <View
+      style={[
+        styles.skeletonBlock,
+        {
+          height,
+          width: widthValue ?? "100%",
+          backgroundColor:
+            themeMode === "dark"
+              ? "rgba(148, 163, 184, 0.12)"
+              : "rgba(148, 163, 184, 0.16)",
+        },
+      ]}
+    />
+  );
+
+  const renderRecentSkeletons = () => (
+    <View style={styles.skeletonStack}>
+      {Array.from({ length: 4 }).map((_, index) => (
+        <View
+          key={`recent-skeleton-${index}`}
+          style={[
+            styles.skeletonExpenseCard,
+            {
+              backgroundColor: theme.mutedSurface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          {renderSkeletonCard(54, 54)}
+          <View style={styles.skeletonExpenseCopy}>
+            {renderSkeletonCard(14, "62%")}
+            {renderSkeletonCard(12, "36%")}
+            {renderSkeletonCard(12, "72%")}
+          </View>
+          <View style={styles.skeletonExpenseMeta}>
+            {renderSkeletonCard(14, 70)}
+            {renderSkeletonCard(11, 54)}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+
   const confirmClearAll = () => {
     Alert.alert(
       "Clear all expenses",
@@ -423,31 +536,82 @@ export default function DashboardScreen({
     await onAddExpense(description, amount, category);
   };
 
-  const handleExportReport = async () => {
+  const exportRows = useMemo(
+    () =>
+      expenses.map((expense) => ({
+        date: new Date(expense.date).toLocaleDateString(),
+        description: expense.description,
+        category: expense.category || "Uncategorized",
+        amount: expense.amount.toFixed(2),
+        notes: expense.notes || "",
+        receipt: expense.imageUrl ? "Yes" : "No",
+      })),
+    [expenses],
+  );
+
+  const summaryRows = useMemo(
+    () => [
+      ["Metric", "Value"],
+      ["Total expenses", formatAmount(stats.total)],
+      ["This month", formatAmount(stats.thisMonth)],
+      ["Last month", formatAmount(stats.lastMonth)],
+      ["Current week", formatAmount(trendStats.currentWeekTotal)],
+      ["Last week", formatAmount(trendStats.lastWeekTotal)],
+      ["Average expense", formatAmount(trendStats.averageExpense)],
+      ["Receipt coverage", `${Math.round(trendStats.receiptCoverage * 100)}%`],
+      ["Entries exported", String(expenses.length)],
+    ],
+    [expenses.length, stats.lastMonth, stats.thisMonth, stats.total, trendStats],
+  );
+
+  const triggerWebDownload = (
+    content: BlobPart,
+    type: string,
+    extension: string,
+  ) => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `eyegasto-report-${new Date()
+      .toISOString()
+      .slice(0, 10)}.${extension}`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const shareNativeFile = async (
+    content: string,
+    extension: string,
+    mimeType: string,
+    dialogTitle: string,
+  ) => {
+    const fileUri = `${FileSystem.cacheDirectory}eyegasto-report-${Date.now()}.${extension}`;
+    await FileSystem.writeAsStringAsync(fileUri, content, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(fileUri, {
+        mimeType,
+        dialogTitle,
+      });
+    } else {
+      Alert.alert("Export ready", `Saved report to ${fileUri}`);
+    }
+  };
+
+  const handleExportReport = async (format: ExportFormat) => {
     setIsExporting(true);
     try {
-      const summaryRows = [
-        ["Metric", "Value"],
-        ["Total expenses", formatAmount(stats.total)],
-        ["This month", formatAmount(stats.thisMonth)],
-        ["Last month", formatAmount(stats.lastMonth)],
-        ["Current week", formatAmount(trendStats.currentWeekTotal)],
-        ["Last week", formatAmount(trendStats.lastWeekTotal)],
-        ["Average expense", formatAmount(trendStats.averageExpense)],
-        [
-          "Receipt coverage",
-          `${Math.round(trendStats.receiptCoverage * 100)}%`,
-        ],
-      ];
-
       const expenseRows = [
         ["Date", "Description", "Category", "Amount", "Receipt"],
-        ...expenses.map((expense) => [
-          new Date(expense.date).toLocaleDateString(),
-          expense.description,
-          expense.category || "Uncategorized",
-          expense.amount.toFixed(2),
-          expense.imageUrl ? "Yes" : "No",
+        ...exportRows.map((row) => [
+          row.date,
+          row.description,
+          row.category,
+          row.amount,
+          row.receipt,
         ]),
       ];
 
@@ -459,37 +623,77 @@ export default function DashboardScreen({
         )
         .join("\n");
 
+      const json = JSON.stringify(
+        {
+          generatedAt: new Date().toISOString(),
+          summary: Object.fromEntries(summaryRows.slice(1)),
+          expenses: exportRows,
+        },
+        null,
+        2,
+      );
+
+      const summaryText = [
+        "EyeGasto Expense Summary",
+        `Generated: ${new Date().toLocaleString()}`,
+        "",
+        ...summaryRows.slice(1).map(([label, value]) => `${label}: ${value}`),
+        "",
+        "Recent Exported Expenses",
+        ...exportRows.map(
+          (row) =>
+            `${row.date} | ${row.description} | ${row.category} | PHP ${row.amount} | Receipt: ${row.receipt}`,
+        ),
+      ].join("\n");
+
       if (Platform.OS === "web") {
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `eyegasto-report-${new Date()
-          .toISOString()
-          .slice(0, 10)}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
+        if (format === "summary") {
+          const reportWindow = window.open("", "_blank", "noopener,noreferrer");
+          if (!reportWindow) {
+            Alert.alert("Export blocked", "Please allow pop-ups to print the report.");
+            return;
+          }
+          reportWindow.document.write(
+            `<html><head><title>EyeGasto Report</title></head><body><pre style="font-family:Arial,sans-serif;white-space:pre-wrap;">${summaryText.replace(/[<&>]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[char] as string))}</pre></body></html>`,
+          );
+          reportWindow.document.close();
+          reportWindow.focus();
+          reportWindow.print();
+          return;
+        }
+
+        if (format === "json") {
+          triggerWebDownload(json, "application/json;charset=utf-8;", "json");
+          return;
+        }
+
+        triggerWebDownload(csv, "text/csv;charset=utf-8;", "csv");
         return;
       }
 
-      const fileUri = `${FileSystem.cacheDirectory}eyegasto-report-${Date.now()}.csv`;
-      await FileSystem.writeAsStringAsync(fileUri, csv, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: "text/csv",
-          dialogTitle: "Export expense report",
-        });
+      if (format === "summary") {
+        await shareNativeFile(
+          summaryText,
+          "txt",
+          "text/plain",
+          "Export summary report",
+        );
+      } else if (format === "json") {
+        await shareNativeFile(
+          json,
+          "json",
+          "application/json",
+          "Export JSON report",
+        );
       } else {
-        Alert.alert("Export ready", `Saved report to ${fileUri}`);
+        await shareNativeFile(csv, "csv", "text/csv", "Export CSV report");
       }
     } catch (error) {
       console.error("Failed to export report", error);
       Alert.alert("Export failed", "We couldn't generate the report.");
     } finally {
       setIsExporting(false);
+      setShowExportOptions(false);
     }
   };
 
@@ -808,27 +1012,50 @@ export default function DashboardScreen({
                 </View>
 
                 <View style={[styles.statsGrid, isCompact && styles.statsGridCompact]}>
-                  <StatsCard
-                    title="Last Month"
-                    amount={stats.lastMonth}
-                    type="expense"
-                    period="month"
-                    mode={themeMode}
-                  />
-                  <StatsCard
-                    title="This Month"
-                    amount={stats.thisMonth}
-                    type="expense"
-                    period="month"
-                    mode={themeMode}
-                  />
-                  <StatsCard
-                    title="Total Expenses"
-                    amount={stats.total}
-                    type="expense"
-                    period="total"
-                    mode={themeMode}
-                  />
+                  {isExpensesLoading || !isPreferencesReady ? (
+                    <>
+                      {Array.from({ length: 3 }).map((_, index) => (
+                        <View
+                          key={`stats-skeleton-${index}`}
+                          style={[
+                            styles.statsSkeletonCard,
+                            {
+                              backgroundColor: theme.mutedSurface,
+                              borderColor: theme.cardBorder,
+                            },
+                          ]}
+                        >
+                          {renderSkeletonCard(12, "42%")}
+                          {renderSkeletonCard(36, "78%")}
+                          {renderSkeletonCard(12, "58%")}
+                        </View>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <StatsCard
+                        title="Last Month"
+                        amount={stats.lastMonth}
+                        type="expense"
+                        period="month"
+                        mode={themeMode}
+                      />
+                      <StatsCard
+                        title="This Month"
+                        amount={stats.thisMonth}
+                        type="expense"
+                        period="month"
+                        mode={themeMode}
+                      />
+                      <StatsCard
+                        title="Total Expenses"
+                        amount={stats.total}
+                        type="expense"
+                        period="total"
+                        mode={themeMode}
+                      />
+                    </>
+                  )}
                 </View>
 
                 <View
@@ -1005,12 +1232,16 @@ export default function DashboardScreen({
                     ))}
                   </ScrollView>
 
-                  <ExpenseList
-                    expenses={displayedExpenses}
-                    onDelete={onDeleteExpense}
-                    onEdit={startEditingExpense}
-                    mode={themeMode}
-                  />
+                  {isExpensesLoading ? (
+                    renderRecentSkeletons()
+                  ) : (
+                    <ExpenseList
+                      expenses={displayedExpenses}
+                      onDelete={onDeleteExpense}
+                      onEdit={startEditingExpense}
+                      mode={themeMode}
+                    />
+                  )}
 
                   {visibleExpenses.length > 5 && !searchQuery.trim() ? (
                     <TouchableOpacity
@@ -1044,35 +1275,58 @@ export default function DashboardScreen({
                     Quick context from your current expense activity.
                   </Text>
 
-                  <View style={[styles.signalCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
-                    <Text style={[styles.signalLabel, { color: theme.faint }]}>Top category</Text>
-                    <Text style={[styles.signalValue, { color: theme.title }]}>
-                      {topCategory ? topCategory[0] : "No data yet"}
-                    </Text>
-                    <Text style={[styles.signalMeta, { color: theme.muted }]}>
-                      {topCategory ? formatAmount(topCategory[1]) : "Add expenses"}
-                    </Text>
-                  </View>
+                  {isExpensesLoading ? (
+                    <>
+                      {Array.from({ length: 3 }).map((_, index) => (
+                        <View
+                          key={`insight-skeleton-${index}`}
+                          style={[
+                            styles.signalCard,
+                            {
+                              backgroundColor: theme.mutedSurface,
+                              borderColor: theme.cardBorder,
+                            },
+                          ]}
+                        >
+                          {renderSkeletonCard(12, "34%")}
+                          {renderSkeletonCard(22, "62%")}
+                          {renderSkeletonCard(12, "46%")}
+                        </View>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <View style={[styles.signalCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                        <Text style={[styles.signalLabel, { color: theme.faint }]}>Top category</Text>
+                        <Text style={[styles.signalValue, { color: theme.title }]}>
+                          {topCategory ? topCategory[0] : "No data yet"}
+                        </Text>
+                        <Text style={[styles.signalMeta, { color: theme.muted }]}>
+                          {topCategory ? formatAmount(topCategory[1]) : "Add expenses"}
+                        </Text>
+                      </View>
 
-                  <View style={[styles.signalCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
-                    <Text style={[styles.signalLabel, { color: theme.faint }]}>Receipts saved</Text>
-                    <Text style={[styles.signalValue, { color: theme.title }]}>
-                      {expenses.filter((expense) => expense.imageUrl).length}
-                    </Text>
-                    <Text style={[styles.signalMeta, { color: theme.muted }]}>
-                      Entries with photo proof attached
-                    </Text>
-                  </View>
+                      <View style={[styles.signalCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                        <Text style={[styles.signalLabel, { color: theme.faint }]}>Receipts saved</Text>
+                        <Text style={[styles.signalValue, { color: theme.title }]}>
+                          {expenses.filter((expense) => expense.imageUrl).length}
+                        </Text>
+                        <Text style={[styles.signalMeta, { color: theme.muted }]}>
+                          Entries with photo proof attached
+                        </Text>
+                      </View>
 
-                  <View style={[styles.signalCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
-                    <Text style={[styles.signalLabel, { color: theme.faint }]}>Member since</Text>
-                    <Text style={[styles.signalValue, { color: theme.title }]}>
-                      {user.createdAt
-                        ? new Date(user.createdAt).toLocaleDateString()
-                        : "Today"}
-                    </Text>
-                    <Text style={[styles.signalMeta, { color: theme.muted }]}>{user.email}</Text>
-                  </View>
+                      <View style={[styles.signalCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                        <Text style={[styles.signalLabel, { color: theme.faint }]}>Member since</Text>
+                        <Text style={[styles.signalValue, { color: theme.title }]}>
+                          {user.createdAt
+                            ? new Date(user.createdAt).toLocaleDateString()
+                            : "Today"}
+                        </Text>
+                        <Text style={[styles.signalMeta, { color: theme.muted }]}>{user.email}</Text>
+                      </View>
+                    </>
+                  )}
                 </View>
               </View>
             </>
@@ -1092,75 +1346,153 @@ export default function DashboardScreen({
                 </View>
                 <TouchableOpacity
                   style={[styles.exportButton, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}
-                  onPress={handleExportReport}
+                  onPress={() => setShowExportOptions(true)}
                   disabled={isExporting}
                 >
                   <Ionicons name="download-outline" size={16} color={theme.accent} />
                   <Text style={[styles.exportButtonText, { color: theme.title }]}>
-                    {isExporting ? "Exporting..." : "Export CSV"}
+                    {isExporting ? "Exporting..." : "Export"}
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.statsSummaryRow}>
-                <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
-                  <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>This month</Text>
-                  <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
-                    {formatAmount(stats.thisMonth)}
-                  </Text>
-                </View>
-                <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
-                  <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>Last month</Text>
-                  <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
-                    {formatAmount(stats.lastMonth)}
-                  </Text>
-                </View>
-              </View>
+              {isExpensesLoading ? (
+                <>
+                  <View style={styles.statsSummaryRow}>
+                    {Array.from({ length: 4 }).map((_, index) => (
+                      <View
+                        key={`analytics-skeleton-${index}`}
+                        style={[
+                          styles.statsSummaryCard,
+                          {
+                            backgroundColor: theme.mutedSurface,
+                            borderColor: theme.cardBorder,
+                          },
+                        ]}
+                      >
+                        {renderSkeletonCard(12, "44%")}
+                        {renderSkeletonCard(26, "64%")}
+                        {renderSkeletonCard(12, "52%")}
+                      </View>
+                    ))}
+                  </View>
+                  <View
+                    style={[
+                      styles.trendHighlightCard,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                  >
+                    {renderSkeletonCard(16, "38%")}
+                    {renderSkeletonCard(12, "88%")}
+                    {renderSkeletonCard(12, "76%")}
+                  </View>
+                  <View
+                    style={[
+                      styles.graphShell,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                        minHeight: 260,
+                      },
+                    ]}
+                  >
+                    {Array.from({ length: isCompact ? 4 : 6 }).map((_, index) => (
+                      <View key={`graph-skeleton-${index}`} style={styles.graphColumn}>
+                        {renderSkeletonCard(12, 60)}
+                        <View
+                          style={[
+                            styles.graphTrack,
+                            {
+                              backgroundColor: theme.cardBackground,
+                              maxWidth: 48,
+                              height: 160,
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.graphBar,
+                              {
+                                height: 50 + index * 18,
+                                backgroundColor:
+                                  themeMode === "dark"
+                                    ? "rgba(125, 211, 252, 0.4)"
+                                    : "rgba(2, 132, 199, 0.28)",
+                              },
+                            ]}
+                          />
+                        </View>
+                        {renderSkeletonCard(12, 56)}
+                      </View>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={styles.statsSummaryRow}>
+                    <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                      <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>This month</Text>
+                      <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
+                        {formatAmount(stats.thisMonth)}
+                      </Text>
+                    </View>
+                    <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                      <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>Last month</Text>
+                      <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
+                        {formatAmount(stats.lastMonth)}
+                      </Text>
+                    </View>
+                  </View>
 
-              <View style={styles.statsSummaryRow}>
-                <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
-                  <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>This week</Text>
-                  <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
-                    {formatAmount(trendStats.currentWeekTotal)}
-                  </Text>
-                </View>
-                <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
-                  <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>Week before</Text>
-                  <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
-                    {formatAmount(trendStats.lastWeekTotal)}
-                  </Text>
-                </View>
-              </View>
+                  <View style={styles.statsSummaryRow}>
+                    <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                      <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>This week</Text>
+                      <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
+                        {formatAmount(trendStats.currentWeekTotal)}
+                      </Text>
+                    </View>
+                    <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                      <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>Week before</Text>
+                      <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
+                        {formatAmount(trendStats.lastWeekTotal)}
+                      </Text>
+                    </View>
+                  </View>
 
-              <View style={styles.statsSummaryRow}>
-                <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
-                  <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>Average expense</Text>
-                  <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
-                    {formatAmount(trendStats.averageExpense)}
-                  </Text>
-                </View>
-                <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
-                  <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>Monthly trend</Text>
-                  <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
-                    {trendStats.monthlyChange >= 0 ? "+" : ""}
-                    {trendStats.monthlyChange.toFixed(0)}%
-                  </Text>
-                </View>
-              </View>
+                  <View style={styles.statsSummaryRow}>
+                    <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                      <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>Average expense</Text>
+                      <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
+                        {formatAmount(trendStats.averageExpense)}
+                      </Text>
+                    </View>
+                    <View style={[styles.statsSummaryCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                      <Text style={[styles.statsSummaryLabel, { color: theme.muted }]}>Monthly trend</Text>
+                      <Text style={[styles.statsSummaryValue, { color: theme.title }]}>
+                        {trendStats.monthlyChange >= 0 ? "+" : ""}
+                        {trendStats.monthlyChange.toFixed(0)}%
+                      </Text>
+                    </View>
+                  </View>
 
-              <View style={[styles.trendHighlightCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
-                <Text style={[styles.sectionTitle, { color: theme.title }]}>Trend Summary</Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
-                  Receipt coverage is {Math.round(trendStats.receiptCoverage * 100)}% and your average expense is {formatAmount(trendStats.averageExpense)}.
-                </Text>
-              </View>
+                  <View style={[styles.trendHighlightCard, { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder }]}>
+                    <Text style={[styles.sectionTitle, { color: theme.title }]}>Trend Summary</Text>
+                    <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
+                      Receipt coverage is {Math.round(trendStats.receiptCoverage * 100)}% and your average expense is {formatAmount(trendStats.averageExpense)}.
+                    </Text>
+                  </View>
+                </>
+              )}
 
-              {graphEntries.length === 0 ? (
+              {!isExpensesLoading && graphEntries.length === 0 ? (
                 <Text style={styles.emptyGraphText}>
                   No expenses yet. Add one in the overview tab to populate the
                   graph.
                 </Text>
-              ) : (
+              ) : !isExpensesLoading ? (
                 <ScrollView
                   horizontal={isCompact}
                   showsHorizontalScrollIndicator={false}
@@ -1214,7 +1546,7 @@ export default function DashboardScreen({
                   })}
                 </View>
                 </ScrollView>
-              )}
+              ) : null}
             </View>
           ) : null}
 
@@ -1239,7 +1571,24 @@ export default function DashboardScreen({
                 </View>
               </View>
 
-              {galleryExpenses.length === 0 ? (
+              {isExpensesLoading ? (
+                <View style={styles.galleryGrid}>
+                  {Array.from({ length: isCompact ? 4 : 6 }).map((_, index) => (
+                    <View
+                      key={`gallery-skeleton-${index}`}
+                      style={[
+                        styles.galleryCard,
+                        isCompact && styles.galleryCardCompact,
+                        { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder },
+                      ]}
+                    >
+                      {renderSkeletonCard(150, "100%")}
+                      {renderSkeletonCard(14, "76%")}
+                      {renderSkeletonCard(12, "58%")}
+                    </View>
+                  ))}
+                </View>
+              ) : galleryExpenses.length === 0 ? (
                 <Text style={[styles.emptyGraphText, { color: theme.faint }]}>
                   No receipt images yet. Add one when creating or editing an expense.
                 </Text>
@@ -1253,7 +1602,7 @@ export default function DashboardScreen({
                         isCompact && styles.galleryCardCompact,
                         { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder },
                       ]}
-                      onPress={() => startEditingExpense(expense)}
+                      onPress={() => setSelectedReceipt(expense)}
                       activeOpacity={0.86}
                     >
                       <Image
@@ -1591,6 +1940,131 @@ export default function DashboardScreen({
       </BlurView>
 
       <Modal
+        animationType="fade"
+        transparent
+        visible={showExportOptions}
+        onRequestClose={() => setShowExportOptions(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <BlurView
+            intensity={34}
+            tint={themeMode === "light" ? "light" : "dark"}
+            style={[
+              styles.infoCard,
+              { backgroundColor: theme.cardBackground, borderColor: theme.cardBorder },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.title }]}>
+              Export Options
+            </Text>
+            <Text style={[styles.infoBody, { color: theme.text }]}>
+              Choose the format that fits your review flow: spreadsheet-ready CSV,
+              structured JSON, or a printable summary report.
+            </Text>
+
+            <View style={styles.exportOptionsStack}>
+              {[
+                {
+                  key: "csv" as const,
+                  icon: "grid-outline" as const,
+                  title: "CSV Spreadsheet",
+                  subtitle: "Best for Excel, Google Sheets, and finance review.",
+                },
+                {
+                  key: "json" as const,
+                  icon: "code-slash-outline" as const,
+                  title: "JSON Data",
+                  subtitle: "Structured export for backups or developer tooling.",
+                },
+                {
+                  key: "summary" as const,
+                  icon: "document-text-outline" as const,
+                  title: "Summary Report",
+                  subtitle: "Printable report on web and shareable text summary on app.",
+                },
+              ].map((option) => (
+                <TouchableOpacity
+                  key={option.key}
+                  style={[
+                    styles.exportOptionCard,
+                    { backgroundColor: theme.mutedSurface, borderColor: theme.cardBorder },
+                  ]}
+                  onPress={() => handleExportReport(option.key)}
+                  disabled={isExporting}
+                >
+                  <Ionicons name={option.icon} size={18} color={theme.accent} />
+                  <View style={styles.exportOptionCopy}>
+                    <Text style={[styles.exportOptionTitle, { color: theme.title }]}>
+                      {option.title}
+                    </Text>
+                    <Text style={[styles.exportOptionSubtitle, { color: theme.muted }]}>
+                      {option.subtitle}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => setShowExportOptions(false)}
+            >
+              <Text style={styles.secondaryButtonText}>Close</Text>
+            </TouchableOpacity>
+          </BlurView>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={Boolean(selectedReceipt)}
+        onRequestClose={() => setSelectedReceipt(null)}
+      >
+        <View style={styles.viewerBackdrop}>
+          <TouchableOpacity
+            style={styles.viewerClose}
+            onPress={() => setSelectedReceipt(null)}
+          >
+            <Ionicons name="close" size={22} color="#F8FAFC" />
+          </TouchableOpacity>
+
+          {selectedReceipt?.imageUrl ? (
+            <Image
+              source={{ uri: selectedReceipt.imageUrl }}
+              style={styles.viewerImage}
+              contentFit="contain"
+            />
+          ) : null}
+
+          {selectedReceipt ? (
+            <BlurView intensity={32} tint="dark" style={styles.viewerInfo}>
+              <Text style={styles.viewerTitle}>{selectedReceipt.description}</Text>
+              <Text style={styles.viewerMeta}>
+                {formatAmount(selectedReceipt.amount)} {"•"}{" "}
+                {selectedReceipt.category || "Uncategorized"}
+              </Text>
+              <Text style={styles.viewerMeta}>
+                {new Date(selectedReceipt.date).toLocaleString()}
+              </Text>
+              {selectedReceipt.notes ? (
+                <Text style={styles.viewerNotes}>{selectedReceipt.notes}</Text>
+              ) : null}
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() => {
+                  setSelectedReceipt(null);
+                  startEditingExpense(selectedReceipt);
+                }}
+              >
+                <Text style={styles.primaryButtonText}>Edit expense</Text>
+              </TouchableOpacity>
+            </BlurView>
+          ) : null}
+        </View>
+      </Modal>
+
+      <Modal
         animationType="slide"
         transparent
         visible={Boolean(editingExpense)}
@@ -1702,7 +2176,25 @@ export default function DashboardScreen({
               </TouchableOpacity>
 
               {editImageUrl ? (
-                <View style={styles.editReceiptPreview}>
+                <TouchableOpacity
+                  style={styles.editReceiptPreview}
+                  activeOpacity={0.9}
+                  onPress={() =>
+                    editingExpense
+                      ? setSelectedReceipt({
+                          ...editingExpense,
+                          description: editDescription.trim() || editingExpense.description,
+                          amount:
+                            Number.parseFloat(editAmount) > 0
+                              ? Number.parseFloat(editAmount)
+                              : editingExpense.amount,
+                          category: editCategory.trim() || editingExpense.category,
+                          notes: editNotes.trim() || editingExpense.notes,
+                          imageUrl: editImageUrl,
+                        })
+                      : null
+                  }
+                >
                   <Image
                     source={{ uri: editImageUrl }}
                     style={styles.editReceiptImage}
@@ -1714,7 +2206,7 @@ export default function DashboardScreen({
                 >
                   <Ionicons name="close" size={16} color="#F8FAFC" />
                 </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             ) : null}
             </ScrollView>
 
@@ -1934,6 +2426,19 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontWeight: "600",
   },
+  statsSkeletonCard: {
+    width: "100%",
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    marginBottom: 12,
+    ...Platform.select({
+      web: {
+        width: "31%",
+        minWidth: 196,
+      } as object,
+    }),
+  },
   statsGrid: {
     marginTop: 16,
     flexDirection: "row",
@@ -2090,6 +2595,28 @@ const styles = StyleSheet.create({
     color: "#F8FAFC",
   },
   signalMeta: { marginTop: 6, fontSize: 12, color: "#94A3B8" },
+  skeletonBlock: {
+    borderRadius: 999,
+    marginBottom: 10,
+  },
+  skeletonStack: {
+    marginTop: 12,
+    gap: 10,
+  },
+  skeletonExpenseCard: {
+    borderRadius: 20,
+    padding: 13,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  skeletonExpenseCopy: {
+    flex: 1,
+  },
+  skeletonExpenseMeta: {
+    alignItems: "flex-end",
+  },
   statsSummaryRow: {
     marginTop: 16,
     flexDirection: "row",
@@ -2130,6 +2657,30 @@ const styles = StyleSheet.create({
   exportButtonText: {
     fontSize: 12,
     fontWeight: "800",
+  },
+  exportOptionsStack: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  exportOptionCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  exportOptionCopy: {
+    flex: 1,
+  },
+  exportOptionTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  exportOptionSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
   },
   trendHighlightCard: {
     marginTop: 14,
@@ -2450,5 +3001,53 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: "#CBD5E1",
     marginBottom: 18,
+  },
+  viewerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(2, 6, 23, 0.94)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  viewerClose: {
+    position: "absolute",
+    top: 48,
+    right: 24,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.88)",
+    zIndex: 2,
+  },
+  viewerImage: {
+    width: "100%",
+    height: "62%",
+    borderRadius: 24,
+  },
+  viewerInfo: {
+    marginTop: 18,
+    borderRadius: 24,
+    padding: 20,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+  },
+  viewerTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#F8FAFC",
+  },
+  viewerMeta: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "#CBD5E1",
+  },
+  viewerNotes: {
+    marginTop: 12,
+    marginBottom: 16,
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#94A3B8",
   },
 });

@@ -30,6 +30,7 @@ export default function ExpenseItem({
   category,
   notes,
   imageUrl,
+  isPending,
   onDelete,
   onPress,
   mode = "dark",
@@ -106,7 +107,11 @@ export default function ExpenseItem({
               {formatAmount(amount)}
             </Text>
             <Text style={[styles.amountMeta, isLight && styles.amountMetaLight]}>
-              {imageUrl ? "Receipt saved" : "No receipt"}
+              {isPending
+                ? "Syncing..."
+                : imageUrl
+                  ? "Receipt saved"
+                  : "No receipt"}
             </Text>
           </View>
         </TouchableOpacity>
@@ -115,6 +120,7 @@ export default function ExpenseItem({
           <TouchableOpacity
             onPress={onPress}
             style={[styles.actionButton, isLight && styles.actionButtonLight]}
+            disabled={isPending}
           >
             <Ionicons
               name="create-outline"
@@ -122,7 +128,11 @@ export default function ExpenseItem({
               color={isLight ? "#334155" : "#E2E8F0"}
             />
           </TouchableOpacity>
-          <TouchableOpacity onPress={onDelete} style={styles.deleteButton}>
+          <TouchableOpacity
+            onPress={onDelete}
+            style={[styles.deleteButton, isPending && styles.disabledAction]}
+            disabled={isPending}
+          >
             <Ionicons name="trash-outline" size={18} color="#FCA5A5" />
           </TouchableOpacity>
         </View>
@@ -280,5 +290,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(127, 29, 29, 0.24)",
+  },
+  disabledAction: {
+    opacity: 0.55,
   },
 });

@@ -18,6 +18,7 @@ export default function Index() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExpensesLoading, setIsExpensesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Check auth status on mount
@@ -30,10 +31,11 @@ export default function Index() {
 
         if (isAuthenticated && currentUser) {
           setUser(currentUser);
-          // Load expenses for authenticated user
+          setCurrentScreen("dashboard");
+          setIsExpensesLoading(true);
+          setIsLoading(false);
           const userExpenses = await expenseService.getExpenses();
           setExpenses(userExpenses);
-          setCurrentScreen("dashboard");
         } else {
           setCurrentScreen("welcome");
         }
@@ -41,6 +43,7 @@ export default function Index() {
         setError(err.message || "Failed to initialize app");
         setCurrentScreen("welcome");
       } finally {
+        setIsExpensesLoading(false);
         setIsLoading(false);
       }
     };
@@ -59,12 +62,15 @@ export default function Index() {
       }
 
       setUser(result.user || null);
+      setCurrentScreen("dashboard");
+      setIsExpensesLoading(true);
+      setIsLoading(false);
       const userExpenses = await expenseService.getExpenses();
       setExpenses(userExpenses);
-      setCurrentScreen("dashboard");
     } catch (err: any) {
       setError(err.message || "Login error");
     } finally {
+      setIsExpensesLoading(false);
       setIsLoading(false);
     }
   };
@@ -120,6 +126,20 @@ export default function Index() {
     notes?: string,
     imageUri?: string,
   ): Promise<boolean> => {
+    const tempId = `temp-${Date.now()}`;
+    const optimisticExpense: Expense = {
+      id: tempId,
+      description,
+      amount,
+      category,
+      notes,
+      date: new Date(),
+      imageUrl: imageUri ?? null,
+      isPending: true,
+    };
+
+    setExpenses((prev) => [optimisticExpense, ...prev]);
+
     try {
       const result = await expenseService.addExpense(
         description,
@@ -130,31 +150,55 @@ export default function Index() {
       );
 
       if (!result.success) {
+        setExpenses((prev) => prev.filter((expense) => expense.id !== tempId));
         setError(result.error || "Failed to add expense");
         return false;
       }
 
       if (result.expense) {
-        setExpenses((prev) => [result.expense!, ...prev]);
+        setExpenses((prev) =>
+          prev.map((expense) =>
+            expense.id === tempId ? result.expense! : expense,
+          ),
+        );
       }
       return true;
     } catch (err: any) {
+      setExpenses((prev) => prev.filter((expense) => expense.id !== tempId));
       setError(err.message || "Error adding expense");
       return false;
     }
   };
 
   const handleDeleteExpense = async (id: string) => {
+    const currentExpenses = expenses;
+    const removedIndex = currentExpenses.findIndex((expense) => expense.id === id);
+    const removedExpense = currentExpenses[removedIndex];
+
+    if (!removedExpense) {
+      return;
+    }
+
+    setExpenses((prev) => prev.filter((expense) => expense.id !== id));
+
     try {
       const result = await expenseService.deleteExpense(id);
 
       if (!result.success) {
+        setExpenses((prev) => {
+          const restored = [...prev];
+          restored.splice(removedIndex, 0, removedExpense);
+          return restored;
+        });
         setError(result.error || "Failed to delete expense");
         return;
       }
-
-      setExpenses((prev) => prev.filter((e) => e.id !== id));
     } catch (err: any) {
+      setExpenses((prev) => {
+        const restored = [...prev];
+        restored.splice(removedIndex, 0, removedExpense);
+        return restored;
+      });
       setError(err.message || "Error deleting expense");
     }
   };
@@ -176,9 +220,35 @@ export default function Index() {
     id: string,
     updates: Partial<Expense>,
   ): Promise<boolean> => {
+    const previousExpense = expenses.find((expense) => expense.id === id);
+    if (!previousExpense) {
+      return false;
+    }
+
+    setExpenses((prev) =>
+      prev.map((expense) =>
+        expense.id === id
+          ? {
+              ...expense,
+              ...updates,
+              date:
+                updates.date !== undefined
+                  ? updates.date
+                  : expense.date,
+              isPending: true,
+            }
+          : expense,
+      ),
+    );
+
     try {
       const result = await expenseService.updateExpense(id, updates);
       if (!result.success) {
+        setExpenses((prev) =>
+          prev.map((expense) =>
+            expense.id === id ? previousExpense : expense,
+          ),
+        );
         setError(result.error || "Failed to update expense");
         return false;
       }
@@ -195,11 +265,15 @@ export default function Index() {
           return {
             ...expense,
             ...updates,
+            isPending: false,
           };
         }),
       );
       return true;
     } catch (err: any) {
+      setExpenses((prev) =>
+        prev.map((expense) => (expense.id === id ? previousExpense : expense)),
+      );
       setError(err.message || "Error updating expense");
       return false;
     }
@@ -261,6 +335,7 @@ export default function Index() {
         <DashboardScreen
           user={user}
           expenses={expenses}
+          isExpensesLoading={isExpensesLoading}
           onAddExpense={handleAddExpense}
           onDeleteExpense={handleDeleteExpense}
           onUpdateExpense={handleUpdateExpense}
