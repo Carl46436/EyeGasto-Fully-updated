@@ -1,6 +1,7 @@
 import { Expense } from "../types";
 import { supabase } from "./supabaseClient";
 import authService from "./authService";
+import expenseStorage from "./expenseStorage";
 
 class ExpenseService {
   async addExpense(
@@ -8,6 +9,7 @@ class ExpenseService {
     amount: number,
     category?: string,
     notes?: string,
+    imageUri?: string,
   ): Promise<{ success: boolean; expense?: Expense; error?: string }> {
     try {
       const currentUser = await authService.getCurrentUser();
@@ -23,6 +25,21 @@ class ExpenseService {
         return { success: false, error: "Amount must be greater than 0" };
       }
 
+      let uploadedReceipt:
+        | { imageUrl?: string; path?: string }
+        | undefined;
+
+      if (imageUri) {
+        const uploadResult = await expenseStorage.uploadReceipt(imageUri);
+        if (!uploadResult.success) {
+          return {
+            success: false,
+            error: uploadResult.error || "Failed to upload receipt",
+          };
+        }
+        uploadedReceipt = uploadResult;
+      }
+
       const { data, error } = await supabase
         .from("expenses")
         .insert({
@@ -32,6 +49,8 @@ class ExpenseService {
           date: new Date().toISOString(),
           category: category || null,
           notes: notes || null,
+          image_url: uploadedReceipt?.imageUrl || null,
+          receipt_path: uploadedReceipt?.path || null,
         })
         .select("*")
         .single();
@@ -50,6 +69,8 @@ class ExpenseService {
         date: new Date(data.date),
         category: data.category ?? undefined,
         notes: data.notes ?? undefined,
+        imageUrl: data.image_url ?? undefined,
+        receiptPath: data.receipt_path ?? undefined,
       };
 
       return { success: true, expense };
@@ -86,6 +107,8 @@ class ExpenseService {
         date: new Date(e.date),
         category: e.category ?? undefined,
         notes: e.notes ?? undefined,
+        imageUrl: e.image_url ?? undefined,
+        receiptPath: e.receipt_path ?? undefined,
       }));
     } catch (error) {
       console.error("Error fetching expenses:", error);
@@ -102,11 +125,13 @@ class ExpenseService {
         return { success: false, error: "User not authenticated" };
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("expenses")
         .delete()
         .eq("id", id)
-        .eq("user_id", currentUser.id);
+        .eq("user_id", currentUser.id)
+        .select("receipt_path")
+        .single();
 
       if (error) {
         return {
@@ -114,6 +139,8 @@ class ExpenseService {
           error: error.message || "Failed to delete expense",
         };
       }
+
+      await expenseStorage.removeReceipt(data?.receipt_path);
 
       return { success: true };
     } catch (error: any) {
@@ -134,31 +161,108 @@ class ExpenseService {
         return { success: false, error: "User not authenticated" };
       }
 
+      const { data: existingExpense } = await supabase
+        .from("expenses")
+        .select("*")
+        .eq("id", id)
+        .eq("user_id", currentUser.id)
+        .maybeSingle();
+
+      const updatePayload: Record<string, any> = {
+        description: updates.description,
+        amount: updates.amount,
+        category: updates.category,
+        notes: updates.notes,
+        date:
+          updates.date instanceof Date
+            ? updates.date.toISOString()
+            : updates.date,
+      };
+
+      if (updates.imageUrl !== undefined) {
+        if (
+          updates.imageUrl &&
+          !/^https?:\/\//i.test(updates.imageUrl) &&
+          !updates.imageUrl.startsWith("data:")
+        ) {
+          const uploadResult = await expenseStorage.uploadReceipt(
+            updates.imageUrl,
+          );
+          if (!uploadResult.success) {
+            return {
+              success: false,
+              error: uploadResult.error || "Failed to upload receipt",
+            };
+          }
+          updatePayload.image_url = uploadResult.imageUrl ?? null;
+          updatePayload.receipt_path = uploadResult.path ?? null;
+        } else {
+          updatePayload.image_url = updates.imageUrl;
+          updatePayload.receipt_path = updates.receiptPath ?? null;
+        }
+      }
+
+      Object.keys(updatePayload).forEach((key) => {
+        if (updatePayload[key] === undefined) {
+          delete updatePayload[key];
+        }
+      });
+
       const { data, error } = await supabase
         .from("expenses")
-        .update({
-          ...updates,
-          date: updates.date ? (updates.date as Date).toISOString() : undefined,
-        })
+        .update(updatePayload)
         .eq("id", id)
         .eq("user_id", currentUser.id)
         .select("*")
-        .single();
+        .maybeSingle();
 
-      if (error || !data) {
+      if (error) {
         return {
           success: false,
           error: error?.message || "Failed to update expense",
         };
       }
 
+      const shouldRemoveOldReceipt =
+        existingExpense?.receipt_path &&
+        existingExpense.receipt_path !== data?.receipt_path &&
+        (updates.imageUrl !== undefined || updates.receiptPath === null);
+
+      if (shouldRemoveOldReceipt) {
+        await expenseStorage.removeReceipt(existingExpense.receipt_path);
+      }
+
+      const resolvedExpense = data ?? {
+        ...existingExpense,
+        id,
+        description: updates.description ?? existingExpense?.description ?? "",
+        amount: updates.amount ?? existingExpense?.amount ?? 0,
+        category:
+          updates.category !== undefined
+            ? updates.category
+            : existingExpense?.category,
+        notes:
+          updates.notes !== undefined ? updates.notes : existingExpense?.notes,
+        date: updates.date ?? existingExpense?.date ?? new Date().toISOString(),
+        image_url:
+          updatePayload.image_url !== undefined
+            ? updatePayload.image_url
+            : existingExpense?.image_url,
+        receipt_path:
+          updatePayload.receipt_path !== undefined
+            ? updatePayload.receipt_path
+            : existingExpense?.receipt_path,
+      };
+
       const expense: Expense = {
-        id: data.id,
-        description: data.description,
-        amount: data.amount,
-        date: new Date(data.date),
-        category: data.category ?? undefined,
-        notes: data.notes ?? undefined,
+        id: resolvedExpense.id,
+        description: resolvedExpense.description,
+        amount: resolvedExpense.amount,
+        date: new Date(resolvedExpense.date),
+        category: resolvedExpense.category ?? undefined,
+        notes: resolvedExpense.notes ?? undefined,
+        imageUrl: resolvedExpense.image_url ?? undefined,
+        receiptPath: resolvedExpense.receipt_path ?? undefined,
       };
 
       return { success: true, expense };

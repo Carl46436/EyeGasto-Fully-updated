@@ -1,19 +1,18 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
+  Animated,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Keyboard,
-  TouchableWithoutFeedback,
-  Animated,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../services/supabaseClient";
 
 interface Props {
@@ -32,7 +31,7 @@ export default function LoginScreen({
   const [showPassword, setShowPassword] = useState(false);
 
   const passwordRef = useRef<TextInput>(null);
-  const slideAnim = useRef(new Animated.Value(100)).current; // start off-screen
+  const slideAnim = useRef(new Animated.Value(100)).current;
 
   useEffect(() => {
     Animated.timing(slideAnim, {
@@ -40,7 +39,7 @@ export default function LoginScreen({
       duration: 500,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [slideAnim]);
 
   const handleLogin = () => {
     if (email.trim() && password.trim()) {
@@ -57,15 +56,10 @@ export default function LoginScreen({
     }
 
     const { error } = await supabase.auth.resetPasswordForEmail(email);
-
-    if (error) {
-      alert(error.message);
-    } else {
-      alert("Password reset email sent!");
-    }
+    alert(error ? error.message : "Password reset email sent!");
   };
 
-return (
+  return (
     <LinearGradient
       colors={["#020617", "#0F172A", "#1E293B"]}
       style={styles.container}
@@ -81,7 +75,7 @@ return (
           showsVerticalScrollIndicator={false}
         >
           <TouchableOpacity onPress={onBackPress} style={styles.backButton}>
-            <Text style={styles.backText}>← Back</Text>
+            <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
 
           <Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
@@ -91,11 +85,15 @@ return (
                 Sign in to continue tracking your expenses.
               </Text>
 
-              {/* EMAIL */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Email</Text>
                 <View style={styles.inputWrapper}>
-                  <Text style={styles.icon}>📩</Text>
+                  <Ionicons
+                    name="mail-outline"
+                    size={18}
+                    color="#94A3B8"
+                    style={styles.inputIcon}
+                  />
                   <TextInput
                     style={styles.input}
                     placeholder="Enter your email"
@@ -105,15 +103,20 @@ return (
                     placeholderTextColor="#9CA3AF"
                     returnKeyType="next"
                     onSubmitEditing={() => passwordRef.current?.focus()}
+                    autoCapitalize="none"
                   />
                 </View>
               </View>
 
-              {/* PASSWORD */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Password</Text>
                 <View style={styles.inputWrapper}>
-                  <Text style={styles.icon}>🔑</Text>
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={18}
+                    color="#94A3B8"
+                    style={styles.inputIcon}
+                  />
                   <TextInput
                     ref={passwordRef}
                     style={styles.input}
@@ -126,14 +129,19 @@ return (
                     onSubmitEditing={handleLogin}
                   />
                   <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
+                    onPress={() => setShowPassword((value) => !value)}
+                    style={styles.eyeButton}
+                    activeOpacity={0.8}
                   >
-                    <Text style={styles.eye}>{showPassword ? "🙈" : "👁"}</Text>
+                    <Ionicons
+                      name={showPassword ? "eye-off-outline" : "eye-outline"}
+                      size={18}
+                      color="#E2E8F0"
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
 
-              {/* FORGOT PASSWORD */}
               <TouchableOpacity
                 style={styles.forgotPassword}
                 onPress={handleForgotPassword}
@@ -141,7 +149,6 @@ return (
                 <Text style={styles.forgotText}>Forgot Password?</Text>
               </TouchableOpacity>
 
-              {/* LOGIN BUTTON */}
               <TouchableOpacity
                 style={styles.loginButton}
                 onPress={handleLogin}
@@ -150,13 +157,12 @@ return (
                 <Text style={styles.loginButtonText}>Sign In</Text>
               </TouchableOpacity>
 
-              {/* REGISTER LINK */}
               <TouchableOpacity
                 style={styles.registerLink}
                 onPress={onRegisterPress}
               >
                 <Text style={styles.registerText}>
-                  Don't have an account? Register
+                  Don&apos;t have an account? Register
                 </Text>
               </TouchableOpacity>
             </BlurView>
@@ -199,7 +205,12 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: "700", color: "#E5E7EB" },
   subtitle: { fontSize: 14, color: "#CBD5F5", marginBottom: 24 },
   inputGroup: { marginBottom: 18 },
-  label: { color: "#9CA3AF", fontSize: 12, marginBottom: 6, fontWeight: "600" },
+  label: {
+    color: "#9CA3AF",
+    fontSize: 12,
+    marginBottom: 6,
+    fontWeight: "600",
+  },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
@@ -209,9 +220,20 @@ const styles = StyleSheet.create({
     borderColor: "#475569",
     paddingHorizontal: 12,
   },
-  icon: { marginRight: 8, fontSize: 16 },
+  inputIcon: { marginRight: 8 },
   input: { flex: 1, paddingVertical: 12, color: "#E5E7EB" },
-  eye: { fontSize: 18, marginLeft: 6 },
+  eyeButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 6,
+    backgroundColor: "rgba(148, 163, 184, 0.08)",
+    ...Platform.select({
+      web: { cursor: "pointer" } as any,
+    }),
+  },
   loginButton: {
     backgroundColor: "#4F46E5",
     paddingVertical: 15,

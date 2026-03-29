@@ -1,15 +1,20 @@
 import React, { useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
+  Alert,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { BlurView } from "expo-blur";
-
+import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 
 interface Props {
   onAdd: (
@@ -17,30 +22,78 @@ interface Props {
     amount: number,
     category?: string,
     notes?: string,
-  ) => void;
+    imageUri?: string,
+  ) => boolean | Promise<boolean>;
 }
 
 export default function AddExpenseForm({ onAdd }: Props) {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 420;
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [notes, setNotes] = useState("");
+  const [imageUri, setImageUri] = useState<string | undefined>();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    const num = parseFloat(amount);
-    if (!description.trim() || isNaN(num)) {
-      return; // could show validation
+  const handlePickImage = async () => {
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permission.status !== "granted") {
+        Alert.alert(
+          "Permission needed",
+          "Photo access is required so receipts can be attached to expenses.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.8,
+        aspect: [4, 5],
+      });
+
+      if (!result.canceled) {
+        setImageUri(result.assets[0]?.uri);
+      }
+    } catch (error) {
+      console.error("Failed to pick receipt image", error);
+      Alert.alert("Upload failed", "We could not select that image.");
     }
-    onAdd(
-      description.trim(),
-      num,
-      category.trim() || undefined,
-      notes.trim() || undefined,
-    );
-    setDescription("");
-    setAmount("");
-    setCategory("");
-    setNotes("");
+  };
+
+  const handleSubmit = async () => {
+    const numericAmount = Number.parseFloat(amount);
+    if (!description.trim() || Number.isNaN(numericAmount) || numericAmount <= 0) {
+      Alert.alert("Missing details", "Please enter a valid expense name and amount.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const success = await onAdd(
+        description.trim(),
+        numericAmount,
+        category.trim() || undefined,
+        notes.trim() || undefined,
+        imageUri,
+      );
+
+      if (!success) {
+        return;
+      }
+
+      setDescription("");
+      setAmount("");
+      setCategory("");
+      setNotes("");
+      setImageUri(undefined);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -48,35 +101,119 @@ export default function AddExpenseForm({ onAdd }: Props) {
       style={styles.wrapper}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <BlurView intensity={30} tint="dark" style={styles.container}>
-        <TextInput
-        style={styles.input}
-        placeholder="Description"
-        value={description}
-        onChangeText={setDescription}
-      />
-        <TextInput
-        style={styles.input}
-        placeholder="Amount (₱)"
-        value={amount}
-        onChangeText={setAmount}
-        keyboardType="numeric"
-      />
-        <TextInput
-        style={styles.input}
-        placeholder="Category (e.g. Food, Bills, Transport)"
-        value={category}
-        onChangeText={setCategory}
-      />
-        <TextInput
-        style={[styles.input, styles.notesInput]}
-        placeholder="Notes (optional)"
-        value={notes}
-        onChangeText={setNotes}
-        multiline
-      />
-        <TouchableOpacity style={styles.button} onPress={handleSubmit}>
-          <Text style={styles.buttonText}>Add</Text>
+      <BlurView intensity={28} tint="dark" style={styles.container}>
+        <View style={[styles.row, isCompact && styles.rowStack]}>
+          <View style={styles.inputBlock}>
+            <Text style={styles.label}>Expense name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Dinner with client"
+              placeholderTextColor="#64748B"
+              value={description}
+              onChangeText={setDescription}
+            />
+          </View>
+          <View style={[styles.inputBlock, styles.amountBlock, isCompact && styles.amountBlockCompact]}>
+            <Text style={styles.label}>Amount</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="0.00"
+              placeholderTextColor="#64748B"
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+
+        <View style={styles.row}>
+          <View style={styles.inputBlock}>
+            <Text style={styles.label}>Category</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Food, Bills, Transport"
+              placeholderTextColor="#64748B"
+              value={category}
+              onChangeText={setCategory}
+            />
+          </View>
+        </View>
+
+        <View style={styles.inputBlock}>
+          <Text style={styles.label}>Notes</Text>
+          <TextInput
+            style={[styles.input, styles.notesInput]}
+            placeholder="Short context, merchant, or reminder"
+            placeholderTextColor="#64748B"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+          />
+        </View>
+
+        <View style={styles.receiptCard}>
+          <View style={styles.receiptHeader}>
+            <View>
+              <Text style={styles.receiptTitle}>Receipt image</Text>
+              <Text style={styles.receiptSubtitle}>
+                Save a photo with this expense for future proof.
+              </Text>
+            </View>
+          </View>
+
+          {imageUri ? (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.previewShell}
+              onPress={handlePickImage}
+            >
+              <Image
+                source={{ uri: imageUri }}
+                style={styles.previewImage}
+                contentFit="cover"
+              />
+              <View style={styles.imageActionPill}>
+                <Ionicons name="image-outline" size={15} color="#E0F2FE" />
+                <Text style={styles.imageActionText}>Tap to replace image</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.removeImageButton}
+                onPress={() => setImageUri(undefined)}
+              >
+                <Ionicons name="close" size={16} color="#E2E8F0" />
+              </TouchableOpacity>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.previewPlaceholder}
+              onPress={handlePickImage}
+            >
+              <Ionicons name="scan-outline" size={22} color="#38BDF8" />
+              <Text style={styles.previewPlaceholderTitle}>Tap to add receipt</Text>
+              <Text style={styles.previewPlaceholderText}>
+                JPG and PNG receipts are supported
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={handleSubmit}
+          disabled={isSubmitting}
+        >
+          <LinearGradient
+            colors={["#22D3EE", "#3B82F6", "#8B5CF6"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.submitButton}
+          >
+            <Ionicons name="add-circle-outline" size={18} color="#020617" />
+            <Text style={styles.submitButtonText}>
+              {isSubmitting ? "Saving..." : "Save expense"}
+            </Text>
+          </LinearGradient>
         </TouchableOpacity>
       </BlurView>
     </KeyboardAvoidingView>
@@ -85,39 +222,150 @@ export default function AddExpenseForm({ onAdd }: Props) {
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginHorizontal: 0,
     marginTop: 16,
   },
   container: {
-    padding: 14,
-    backgroundColor: "rgba(15,23,42,0.75)",
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#ede2e2",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.1)",
+    backgroundColor: "rgba(8, 15, 30, 0.86)",
+    gap: 12,
+    overflow: "hidden",
+  },
+  row: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  rowStack: {
+    flexDirection: "column",
+  },
+  inputBlock: {
+    flex: 1,
+  },
+  amountBlock: {
+    maxWidth: 130,
+  },
+  amountBlockCompact: {
+    maxWidth: "100%",
+  },
+  label: {
+    marginBottom: 7,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: "#94A3B8",
   },
   input: {
-    height: 40,
-    borderColor: "#000000",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    marginBottom: 10,
-    backgroundColor: "rgb(255, 255, 255)",
-    color: "#000000",
+    borderColor: "rgba(148, 163, 184, 0.12)",
+    backgroundColor: "rgba(15, 23, 42, 0.9)",
+    color: "#F8FAFC",
+    fontSize: 15,
   },
   notesInput: {
-    height: 64,
+    minHeight: 92,
     textAlignVertical: "top",
   },
-  button: {
-    backgroundColor: "#7ecb55",
-    paddingVertical: 10,
-    borderRadius: 6,
-    alignItems: "center",
+  receiptCard: {
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.1)",
+    backgroundColor: "rgba(9, 14, 25, 0.72)",
   },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 16,
+  receiptHeader: {
+    gap: 10,
+  },
+  receiptTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#F8FAFC",
+  },
+  receiptSubtitle: {
+    marginTop: 3,
+    fontSize: 12,
+    color: "#64748B",
+  },
+  previewShell: {
+    marginTop: 14,
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: 16,
+  },
+  previewImage: {
+    width: "100%",
+    height: 176,
+    borderRadius: 16,
+  },
+  removeImageButton: {
+    position: "absolute",
+    right: 12,
+    top: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(2, 6, 23, 0.72)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  imageActionPill: {
+    position: "absolute",
+    left: 12,
+    bottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "rgba(2, 6, 23, 0.76)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.14)",
+  },
+  imageActionText: {
+    color: "#E0F2FE",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  previewPlaceholder: {
+    marginTop: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "rgba(148, 163, 184, 0.18)",
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.56)",
+    gap: 10,
+  },
+  previewPlaceholderTitle: {
+    color: "#E2E8F0",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  previewPlaceholderText: {
+    color: "#64748B",
+    fontSize: 12,
+  },
+  submitButton: {
+    marginTop: 4,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  submitButtonText: {
+    color: "#020617",
+    fontSize: 15,
+    fontWeight: "800",
   },
 });

@@ -118,25 +118,29 @@ export default function Index() {
     amount: number,
     category?: string,
     notes?: string,
-  ) => {
+    imageUri?: string,
+  ): Promise<boolean> => {
     try {
       const result = await expenseService.addExpense(
         description,
         amount,
         category,
         notes,
+        imageUri,
       );
 
       if (!result.success) {
         setError(result.error || "Failed to add expense");
-        return;
+        return false;
       }
 
       if (result.expense) {
         setExpenses((prev) => [result.expense!, ...prev]);
       }
+      return true;
     } catch (err: any) {
       setError(err.message || "Error adding expense");
+      return false;
     }
   };
 
@@ -168,20 +172,36 @@ export default function Index() {
     }
   };
 
-  const handleUpdateExpense = async (id: string, updates: Partial<Expense>) => {
+  const handleUpdateExpense = async (
+    id: string,
+    updates: Partial<Expense>,
+  ): Promise<boolean> => {
     try {
       const result = await expenseService.updateExpense(id, updates);
       if (!result.success) {
         setError(result.error || "Failed to update expense");
-        return;
+        return false;
       }
-      if (result.expense) {
-        setExpenses((prev) =>
-          prev.map((e) => (e.id === id ? result.expense! : e)),
-        );
-      }
+      setExpenses((prev) =>
+        prev.map((expense) => {
+          if (expense.id !== id) {
+            return expense;
+          }
+
+          if (result.expense) {
+            return result.expense;
+          }
+
+          return {
+            ...expense,
+            ...updates,
+          };
+        }),
+      );
+      return true;
     } catch (err: any) {
       setError(err.message || "Error updating expense");
+      return false;
     }
   };
 

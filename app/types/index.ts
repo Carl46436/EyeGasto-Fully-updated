@@ -15,4 +15,6 @@ export interface Expense {
   category?: string;
   notes?: string;
   date: string | Date;
+  imageUrl?: string | null;
+  receiptPath?: string | null;
 }

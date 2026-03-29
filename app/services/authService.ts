@@ -136,7 +136,7 @@ class AuthService {
       if (!newPassword) {
         return { success: false, error: "Password is required" };
       }
-      const { data, error } = await supabase.auth.updateUser({
+      const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });
       if (error) {

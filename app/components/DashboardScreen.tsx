@@ -1,20 +1,19 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  SafeAreaView,
-  StatusBar,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Dimensions,
-  Platform,
-  Animated,
-  useWindowDimensions,
   ActivityIndicator,
   Alert,
-  Image as RNImage,
+  Animated,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,8 +27,6 @@ import ExpenseList from "./ExpenseList";
 import StatsCard from "./StatsCard";
 import { Expense, User } from "../types/index";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-
 interface Props {
   user: User;
   expenses: Expense[];
@@ -38,12 +35,13 @@ interface Props {
     amount: number,
     category?: string,
     notes?: string,
-  ) => void;
+    imageUri?: string,
+  ) => boolean | Promise<boolean>;
   onDeleteExpense: (id: string) => void;
   onUpdateExpense: (
     id: string,
     updates: Partial<Expense>,
-  ) => Promise<void> | void;
+  ) => Promise<boolean> | boolean;
   onUpdateUser?: (updates: Partial<User>) => Promise<void>;
   onChangePassword?: (
     oldPassword: string,
@@ -52,6 +50,15 @@ interface Props {
   onClearAll: () => Promise<void>;
   onLogout: () => void;
 }
+
+type InfoSheet = "terms" | "about" | null;
+
+const formatAmount = (amount: number) =>
+  new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    maximumFractionDigits: 2,
+  }).format(amount);
 
 export default function DashboardScreen({
   user,
@@ -64,25 +71,47 @@ export default function DashboardScreen({
   onClearAll,
   onLogout,
 }: Props) {
-  const [showAddForm, setShowAddForm] = useState(false);
+  const { width } = useWindowDimensions();
+  const isCompact = width < 768;
+  const isVeryCompact = width < 420;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const [activeTab, setActiveTab] = useState<"overview" | "stats" | "profile">(
+    "overview",
+  );
+  const [showAddForm, setShowAddForm] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | "All">(
     "All",
   );
+  const [searchQuery, setSearchQuery] = useState("");
   const [monthlyBudget, setMonthlyBudget] = useState(10000);
-
-  const { width: windowWidth } = useWindowDimensions();
-  const isWeb = Platform.OS === "web";
-  const isLargeScreen = windowWidth > 768;
-
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [showAllExpenses, setShowAllExpenses] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editDescription, setEditDescription] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState(user.name);
+  const [editEmail, setEditEmail] = useState(user.email);
+  const [showPasswordFields, setShowPasswordFields] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [infoSheet, setInfoSheet] = useState<InfoSheet>(null);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 800,
+      duration: 650,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [fadeAnim]);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -91,40 +120,38 @@ export default function DashboardScreen({
     const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
     const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
 
-    const thisMonthExpenses = expenses
-      .filter((e) => {
-        const eDate = new Date(e.date);
+    const thisMonth = expenses
+      .filter((expense) => {
+        const date = new Date(expense.date);
         return (
-          eDate.getMonth() === currentMonth &&
-          eDate.getFullYear() === currentYear
+          date.getMonth() === currentMonth &&
+          date.getFullYear() === currentYear
         );
       })
-      .reduce((sum, e) => sum + e.amount, 0);
+      .reduce((sum, expense) => sum + expense.amount, 0);
 
-    const lastMonthExpenses = expenses
-      .filter((e) => {
-        const eDate = new Date(e.date);
+    const lastMonthTotal = expenses
+      .filter((expense) => {
+        const date = new Date(expense.date);
         return (
-          eDate.getMonth() === lastMonth &&
-          eDate.getFullYear() === lastMonthYear
+          date.getMonth() === lastMonth &&
+          date.getFullYear() === lastMonthYear
         );
       })
-      .reduce((sum, e) => sum + e.amount, 0);
-
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+      .reduce((sum, expense) => sum + expense.amount, 0);
 
     return {
-      thisMonth: thisMonthExpenses,
-      lastMonth: lastMonthExpenses,
-      total: totalExpenses,
+      thisMonth,
+      lastMonth: lastMonthTotal,
+      total: expenses.reduce((sum, expense) => sum + expense.amount, 0),
     };
   }, [expenses]);
 
   const categoryBreakdown = useMemo(() => {
     const breakdown: Record<string, number> = {};
-    expenses.forEach((e) => {
-      const cat = e.category || "Uncategorized";
-      breakdown[cat] = (breakdown[cat] || 0) + e.amount;
+    expenses.forEach((expense) => {
+      const key = expense.category || "Uncategorized";
+      breakdown[key] = (breakdown[key] || 0) + expense.amount;
     });
     return breakdown;
   }, [expenses]);
@@ -134,62 +161,36 @@ export default function DashboardScreen({
     [categoryBreakdown],
   );
 
-  const [activeTab, setActiveTab] = useState<"overview" | "stats" | "profile">(
-    "overview",
-  );
-
-  const [searchQuery, setSearchQuery] = useState("");
-  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-  const [editDescription, setEditDescription] = useState("");
-  const [editAmount, setEditAmount] = useState("");
-  const [editCategory, setEditCategory] = useState("");
-  const [editNotes, setEditNotes] = useState("");
-
-  // Profile Edit State
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [editName, setEditName] = useState(user.name);
-  const [editEmail, setEditEmail] = useState(user.email);
-
-  // Password Change State
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [showPasswordFields, setShowPasswordFields] = useState(false);
-  const [oldPassword, setOldPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [passwordSuccess, setPasswordSuccess] = useState("");
-  const [showAllExpenses, setShowAllExpenses] = useState(false);
-
-  const visibleExpenses = useMemo(
-    () =>
-      (() => {
-        let filtered =
-          selectedCategory === "All"
-            ? expenses
-            : expenses.filter(
-                (e) => (e.category || "Uncategorized") === selectedCategory,
-              );
-
-        const q = searchQuery.trim().toLowerCase();
-        if (q) {
-          filtered = filtered.filter(
-            (e) =>
-              e.description.toLowerCase().includes(q) ||
-              (e.notes?.toLowerCase().includes(q) ?? false),
+  const visibleExpenses = useMemo(() => {
+    let filtered =
+      selectedCategory === "All"
+        ? expenses
+        : expenses.filter(
+            (expense) =>
+              (expense.category || "Uncategorized") === selectedCategory,
           );
-        }
 
-        return filtered;
-      })(),
-    [expenses, selectedCategory, searchQuery],
-  );
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return filtered;
+    }
+
+    return filtered.filter((expense) => {
+      const values = [
+        expense.description,
+        expense.category,
+        expense.notes,
+      ].filter(Boolean) as string[];
+      return values.some((value) => value.toLowerCase().includes(query));
+    });
+  }, [expenses, searchQuery, selectedCategory]);
 
   const displayedExpenses = useMemo(() => {
     if (showAllExpenses || searchQuery.trim()) {
       return visibleExpenses;
     }
     return visibleExpenses.slice(0, 5);
-  }, [visibleExpenses, showAllExpenses, searchQuery]);
+  }, [searchQuery, showAllExpenses, visibleExpenses]);
 
   const budgetUsage =
     monthlyBudget > 0 ? Math.min(stats.thisMonth / monthlyBudget, 1) : 0;
@@ -197,129 +198,51 @@ export default function DashboardScreen({
   const topCategory =
     Object.entries(categoryBreakdown).sort((a, b) => b[1] - a[1])[0] || null;
 
-  // Chart Data Logic
-  const chartData = useMemo(() => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-
-    const dailyData = Array.from({ length: daysInMonth }, (_, i) => ({
-      day: i + 1,
-      amount: 0,
-    }));
-
-    expenses.forEach((e) => {
-      const eDate = new Date(e.date);
-      if (
-        eDate.getMonth() === currentMonth &&
-        eDate.getFullYear() === currentYear
-      ) {
-        const dayIndex = eDate.getDate() - 1;
-        if (dayIndex >= 0 && dayIndex < dailyData.length) {
-          dailyData[dayIndex].amount += e.amount;
-        }
-      }
-    });
-
-    const maxAmount = Math.max(...dailyData.map((d) => d.amount), 1);
-    return { data: dailyData, maxAmount };
-  }, [expenses]);
+  const graphEntries = useMemo(
+    () => Object.entries(categoryBreakdown).sort((a, b) => b[1] - a[1]),
+    [categoryBreakdown],
+  );
 
   const quickAdds = [
-    {
-      label: "Coffee ₱80",
-      description: "Coffee",
-      amount: 80,
-      category: "Food",
-    },
-    {
-      label: "Lunch ₱150",
-      description: "Lunch",
-      amount: 150,
-      category: "Food",
-    },
-    {
-      label: "Transport ₱120",
-      description: "Transport",
-      amount: 120,
-      category: "Transport",
-    },
-    {
-      label: "Bills ₱500",
-      description: "Bills",
-      amount: 500,
-      category: "Bills",
-    },
-    {
-      label: "Groceries ₱300",
-      description: "Groceries",
-      amount: 300,
-      category: "Groceries",
-    },
-    {
-      label: "Snacks ₱50",
-      description: "Snacks",
-      amount: 50,
-      category: "Food",
-    },
-    {
-      label: "Entertainment ₱200",
-      description: "Entertainment",
-      amount: 200,
-      category: "Entertainment",
-    },
-    {
-      label: "Other ₱100",
-      description: "Miscellaneous",
-      amount: 100,
-      category: "Other",
-    },
+    { label: "Coffee", amount: 80, category: "Food" },
+    { label: "Lunch", amount: 150, category: "Food" },
+    { label: "Transport", amount: 120, category: "Transport" },
+    { label: "Groceries", amount: 650, category: "Groceries" },
+    { label: "Bills", amount: 1200, category: "Bills" },
   ];
 
-  const handleQuickAdd = async (
-    description: string,
-    amount: number,
-    category?: string,
-  ) => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onAddExpense(description, amount, category);
-  };
-
-  const startEditingExpense = async (expense: Expense) => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setEditingExpense(expense);
-    setEditDescription(expense.description);
-    setEditAmount(expense.amount.toString());
-    setEditCategory(expense.category || "");
-    setEditNotes(expense.notes || "");
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingExpense) return;
-    const num = parseFloat(editAmount);
-    if (!editDescription.trim() || isNaN(num)) {
-      return;
+  const renderAvatar = (size: number, fontSize: number) => {
+    if (user.avatar) {
+      return (
+        <Image
+          source={{ uri: user.avatar }}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+          contentFit="cover"
+        />
+      );
     }
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await onUpdateExpense(editingExpense.id, {
-      description: editDescription.trim(),
-      amount: num,
-      category: editCategory.trim() || undefined,
-      notes: editNotes.trim() || undefined,
-    });
-    setEditingExpense(null);
-  };
 
-  const handleCancelEdit = async () => {
-    await Haptics.selectionAsync();
-    setEditingExpense(null);
+    return (
+      <LinearGradient
+        colors={["#22D3EE", "#3B82F6", "#8B5CF6"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[
+          styles.avatarFallback,
+          { width: size, height: size, borderRadius: size / 2 },
+        ]}
+      >
+        <Text style={[styles.avatarText, { fontSize }]}>
+          {user.name?.charAt(0).toUpperCase() || "U"}
+        </Text>
+      </LinearGradient>
+    );
   };
 
   const confirmClearAll = () => {
     Alert.alert(
       "Clear all expenses",
-      "This will remove all your saved expenses. Continue?",
+      "This removes every saved expense entry from your account.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -336,162 +259,22 @@ export default function DashboardScreen({
     );
   };
 
-  const handleSaveProfile = async () => {
-    if (!editName.trim() || !editEmail.trim()) return;
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (onUpdateUser) {
-      await onUpdateUser({ name: editName.trim(), email: editEmail.trim() });
-    }
-    setIsEditingProfile(false);
-  };
-
-  const handleCancelProfile = () => {
-    setEditName(user.name);
-    setEditEmail(user.email);
-    setIsEditingProfile(false);
-  };
-
-  const handleChangePassword = async () => {
-    setPasswordError("");
-    setPasswordSuccess("");
-
-    if (!oldPassword.trim()) {
-      setPasswordError("Please enter your current password");
-      return;
-    }
-    if (!newPassword.trim()) {
-      setPasswordError("Please enter a new password");
-      return;
-    }
-    if (newPassword.length < 6) {
-      setPasswordError("Password must be at least 6 characters");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError("Passwords don't match");
-      return;
-    }
-    if (oldPassword === newPassword) {
-      setPasswordError("New password must be different from current password");
-      return;
-    }
-
-    setIsChangingPassword(true);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    try {
-      if (!onChangePassword) {
-        setPasswordError(
-          "Password change is not configured. Please contact support.",
-        );
-        setIsChangingPassword(false);
-        return;
-      }
-
-      console.log("[v0] Starting password change...");
-      await onChangePassword(oldPassword, newPassword);
-      console.log("[v0] Password change successful");
-
-      setOldPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setPasswordError("");
-      setPasswordSuccess("Password changed successfully!");
-      setShowPasswordFields(false);
-
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Success!", "Your password has been changed successfully.");
-
-      setTimeout(() => {
-        setPasswordSuccess("");
-      }, 3000);
-    } catch (error) {
-      console.log("[v0] Password change error:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to change password. Please try again.";
-      setPasswordError(errorMessage);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setIsChangingPassword(false);
-    }
-  };
-
-  const handleCancelPassword = () => {
-    setOldPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setPasswordError("");
-    setPasswordSuccess("");
-    setShowPasswordFields(false);
-  };
-
-  const handlePickImage = async () => {
-    try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission Denied",
-          "Sorry, we need camera roll permissions to make this work!",
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
-      });
-
-      if (!result.canceled && result.assets && result.assets[0].uri) {
-        if (onUpdateUser) {
-          await onUpdateUser({ avatar: result.assets[0].uri });
-        }
-      }
-    } catch (error) {
-      console.error("Error picking image:", error);
-      Alert.alert("Error", "Failed to pick image");
-    }
-  };
-
-  const renderAvatar = (size: number = 50, fontSize: number = 20) => {
-    if (user.avatar) {
-      return (
-        <Image
-          source={{ uri: user.avatar }}
-          style={{ width: size, height: size, borderRadius: size / 2 }}
-          contentFit="cover"
-          transition={200}
-        />
-      );
-    }
-    return (
-      <View
-        style={[
-          styles.profileAvatar,
-          {
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            backgroundColor: "#4F46E5",
-          },
-        ]}
-      >
-        <Text style={[styles.profileAvatarText, { fontSize }]}>
-          {user.name?.charAt(0).toUpperCase() || "U"}
-        </Text>
-      </View>
-    );
-  };
-
   const confirmLogout = () => {
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
+    if (Platform.OS === "web") {
+      const shouldLogout =
+        typeof window !== "undefined" &&
+        window.confirm("Are you sure you want to sign out?");
+
+      if (shouldLogout) {
+        onLogout();
+      }
+      return;
+    }
+
+    Alert.alert("Log out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Log Out",
+        text: "Log out",
         style: "destructive",
         onPress: async () => {
           await Haptics.notificationAsync(
@@ -503,1574 +286,1478 @@ export default function DashboardScreen({
     ]);
   };
 
+  const handleQuickAdd = async (
+    description: string,
+    amount: number,
+    category?: string,
+  ) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await onAddExpense(description, amount, category);
+  };
+
+  const startEditingExpense = (expense: Expense) => {
+    setEditingExpense(expense);
+    setEditDescription(expense.description);
+    setEditAmount(String(expense.amount));
+    setEditCategory(expense.category || "");
+    setEditNotes(expense.notes || "");
+    setEditImageUrl(expense.imageUrl ?? null);
+  };
+
+  const closeEditingExpense = () => {
+    setEditingExpense(null);
+    setEditImageUrl(null);
+  };
+
+  const pickExpenseReceipt = async () => {
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permission.status !== "granted") {
+        Alert.alert(
+          "Permission needed",
+          "Allow photo access to attach a receipt to this expense.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setEditImageUrl(result.assets[0]?.uri || null);
+      }
+    } catch (error) {
+      console.error("Failed to pick receipt image", error);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingExpense) {
+      return;
+    }
+
+    const numericAmount = Number.parseFloat(editAmount);
+    if (!editDescription.trim() || Number.isNaN(numericAmount) || numericAmount <= 0) {
+      Alert.alert("Missing details", "Please enter a valid description and amount.");
+      return;
+    }
+
+    setIsSavingEdit(true);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const success = await onUpdateExpense(editingExpense.id, {
+        description: editDescription.trim(),
+        amount: numericAmount,
+        category: editCategory.trim() || undefined,
+        notes: editNotes.trim() || undefined,
+        imageUrl: editImageUrl,
+        receiptPath:
+          editImageUrl && /^https?:\/\//i.test(editImageUrl)
+            ? editingExpense.receiptPath
+            : undefined,
+      });
+
+      if (success) {
+        closeEditingExpense();
+      }
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim() || !editEmail.trim() || !onUpdateUser) {
+      return;
+    }
+
+    await onUpdateUser({
+      name: editName.trim(),
+      email: editEmail.trim(),
+    });
+    setIsEditingProfile(false);
+  };
+
+  const handlePickAvatar = async () => {
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permission.status !== "granted") {
+        Alert.alert(
+          "Permission needed",
+          "Photo access is required to update your profile image.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && onUpdateUser) {
+        await onUpdateUser({ avatar: result.assets[0]?.uri });
+      }
+    } catch (error) {
+      console.error("Failed to update avatar", error);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    if (!oldPassword.trim()) {
+      setPasswordError("Enter your current password.");
+      return;
+    }
+
+    if (!newPassword.trim()) {
+      setPasswordError("Enter a new password.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError("New password must be at least 6 characters.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match.");
+      return;
+    }
+
+    if (!onChangePassword) {
+      setPasswordError("Password changes are not configured yet.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await onChangePassword(oldPassword, newPassword);
+      setPasswordSuccess("Password changed successfully.");
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowPasswordFields(false);
+    } catch (error: any) {
+      setPasswordError(error.message || "Failed to change password.");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const infoContent = {
+    terms: {
+      title: "Terms of Use",
+      body:
+        "EyeGasto stores account details, expense records, and attached receipt images so users can manage spending history. By using the app, users agree to keep uploaded files lawful, personal, and relevant to expense tracking. Shared devices should be protected with account logout and secure passwords.",
+    },
+    about: {
+      title: "About EyeGasto",
+      body:
+        "EyeGasto is a modern expense tracker focused on fast entry, clean analytics, and visual proof through receipt uploads. The current experience is built around daily monitoring, category trends, and a streamlined dark interface for mobile-first budgeting.",
+    },
+  } as const;
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" />
 
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            {renderAvatar(32, 14)}
-            <View>
-              <Text style={styles.headerTitle}>EyeGasto</Text>
-              <Text style={styles.headerSubtitle}>
-                Track your expenses in one clean view.
-              </Text>
-            </View>
+      <View style={styles.backgroundOrbOne} />
+      <View style={styles.backgroundOrbTwo} />
+
+      <View style={[styles.header, isCompact && styles.headerCompact]}>
+        <View style={styles.headerLeft}>
+          {renderAvatar(40, 18)}
+          <View>
+            <Text style={styles.headerTitle}>EyeGasto</Text>
+            <Text style={styles.headerSubtitle}>
+              Smart expense tracking with saved receipt evidence.
+            </Text>
           </View>
         </View>
+
+        {!isCompact ? (
+          <View style={styles.headerBadge}>
+            <Ionicons name="sparkles-outline" size={14} color="#67E8F9" />
+            <Text style={styles.headerBadgeText}>Live Dashboard</Text>
+          </View>
+        ) : null}
       </View>
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        {activeTab === "overview" && (
-          <Animated.View style={{ opacity: fadeAnim }}>
-            <View style={styles.statsSection}>
-              <Text style={styles.sectionTitle}>Overview</Text>
-              <View style={styles.statsGrid}>
-                <StatsCard
-                  title="Last Month"
-                  amount={stats.lastMonth}
-                  type="expense"
-                  period="month"
-                />
-                <StatsCard
-                  title="This Month"
-                  amount={stats.thisMonth}
-                  type="expense"
-                  period="month"
-                />
-                <StatsCard
-                  title="Total Expenses"
-                  amount={stats.total}
-                  type="expense"
-                  period="total"
-                />
-              </View>
+        <Animated.View style={{ opacity: fadeAnim }}>
+          {activeTab === "overview" ? (
+            <>
+              <LinearGradient
+                colors={["rgba(15,23,42,0.92)", "rgba(8,15,30,0.72)"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroCard}
+              >
+                <Text style={styles.heroEyebrow}>Today</Text>
+                <Text style={styles.heroTitle}>Track expenses and review activity in one place.</Text>
+                <Text style={styles.heroSubtitle}>
+                  Add a receipt, update your budget, and scan recent entries without leaving the dashboard.
+                </Text>
+              </LinearGradient>
 
-              <View style={styles.budgetContainer}>
-                <View style={styles.budgetHeader}>
+              <View style={[styles.panel, styles.addPanel]}>
+                <View style={[styles.panelHeader, isCompact && styles.panelHeaderStack]}>
                   <View>
-                    <Text style={styles.budgetLabel}>This month's budget</Text>
-                    <TextInput
-                      style={styles.budgetInput}
-                      keyboardType="numeric"
-                      value={monthlyBudget.toString()}
-                      onChangeText={(text) => {
-                        const num =
-                          parseFloat(text.replace(/[^0-9]/g, "")) || 0;
-                        setMonthlyBudget(num);
-                      }}
-                    />
-                  </View>
-                  <View>
-                    <Text style={styles.budgetLabel}>Spent</Text>
-                    <Text style={styles.budgetValue}>
-                      ₱{stats.thisMonth.toFixed(0)}
+                    <Text style={styles.sectionTitle}>Add Expense</Text>
+                    <Text style={styles.sectionSubtitle}>
+                      Save the amount, category, notes, and optional receipt.
                     </Text>
                   </View>
+                  <TouchableOpacity
+                    style={styles.iconToggle}
+                    onPress={() => setShowAddForm((value) => !value)}
+                  >
+                    <Ionicons
+                      name={showAddForm ? "remove" : "add"}
+                      size={18}
+                      color="#E2E8F0"
+                    />
+                  </TouchableOpacity>
                 </View>
-                <View style={styles.budgetBarBackground}>
-                  <View
-                    style={[
-                      styles.budgetBarFill,
-                      { width: `${budgetUsage * 100}%` },
-                    ]}
-                  />
-                </View>
-              </View>
-            </View>
 
-            <View style={isLargeScreen ? styles.responsiveRow : null}>
-              <View style={isLargeScreen ? styles.leftCol : null}>
-                <View style={styles.formSection}>
-                  <View style={styles.formHeader}>
-                    <Text style={styles.sectionTitle}>Add New Expense</Text>
+                {showAddForm ? <AddExpenseForm onAdd={onAddExpense} /> : null}
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.quickAddRow}
+                >
+                  {quickAdds.map((item) => (
                     <TouchableOpacity
-                      onPress={() => setShowAddForm(!showAddForm)}
-                      style={styles.toggleBtn}
+                      key={`${item.label}-${item.amount}`}
+                      style={styles.quickAddChip}
+                      onPress={() =>
+                        handleQuickAdd(item.label, item.amount, item.category)
+                      }
                     >
-                      <Text style={styles.toggleText}>
-                        {showAddForm ? "−" : "+"}
+                      <Text style={styles.quickAddChipLabel}>{item.label}</Text>
+                      <Text style={styles.quickAddChipAmount}>
+                        {formatAmount(item.amount)}
                       </Text>
                     </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              <View style={styles.panel}>
+                <View style={[styles.panelHeader, isCompact && styles.panelHeaderStack]}>
+                  <View>
+                    <Text style={styles.sectionTitle}>Overview</Text>
+                    <Text style={styles.sectionSubtitle}>Monthly totals and budget status.</Text>
                   </View>
-                  {showAddForm && (
-                    <View>
-                      <AddExpenseForm onAdd={onAddExpense} />
+                </View>
+
+                <View style={[styles.statsGrid, isCompact && styles.statsGridCompact]}>
+                  <StatsCard
+                    title="Last Month"
+                    amount={stats.lastMonth}
+                    type="expense"
+                    period="month"
+                  />
+                  <StatsCard
+                    title="This Month"
+                    amount={stats.thisMonth}
+                    type="expense"
+                    period="month"
+                  />
+                  <StatsCard
+                    title="Total Expenses"
+                    amount={stats.total}
+                    type="expense"
+                    period="total"
+                  />
+                </View>
+
+                <View style={styles.budgetShell}>
+                  <View style={[styles.budgetHeader, isCompact && styles.budgetHeaderStack]}>
+                    <View style={styles.budgetBlock}>
+                      <Text style={styles.budgetLabel}>Monthly budget</Text>
+                      <TextInput
+                        style={styles.budgetInput}
+                        value={String(monthlyBudget)}
+                        onChangeText={(value) =>
+                          setMonthlyBudget(
+                            Number.parseFloat(value.replace(/[^0-9.]/g, "")) ||
+                              0,
+                          )
+                        }
+                        keyboardType="numeric"
+                      />
                     </View>
-                  )}
-                  <BlurView
-                    intensity={25}
-                    tint="dark"
-                    style={styles.quickAddWrapper}
-                  >
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.quickAddRow}
-                    >
-                      {quickAdds.map((qa) => (
-                        <TouchableOpacity
-                          key={qa.label}
-                          style={styles.quickAddChip}
-                          onPress={() =>
-                            handleQuickAdd(
-                              qa.description,
-                              qa.amount,
-                              qa.category,
-                            )
-                          }
-                        >
-                          <Text style={styles.quickAddText}>{qa.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </BlurView>
+                    <View style={styles.budgetSummary}>
+                      <Text style={styles.budgetLabel}>Spent so far</Text>
+                      <Text style={styles.budgetValue}>
+                        {formatAmount(stats.thisMonth)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.budgetTrack}>
+                    <LinearGradient
+                      colors={["#22D3EE", "#3B82F6", "#8B5CF6"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[
+                        styles.budgetFill,
+                        { width: `${Math.max(budgetUsage * 100, 4)}%` },
+                      ]}
+                    />
+                  </View>
                 </View>
               </View>
 
-              <View style={isLargeScreen ? styles.rightCol : null}>
-                <View
-                  style={[
-                    styles.listSection,
-                    isLargeScreen && { marginTop: 0 },
-                  ]}
-                >
-                  <View style={styles.listHeaderRow}>
-                    <Text style={styles.sectionTitle}>Recent Expenses</Text>
-                    <View style={styles.listHeaderActions}>
-                      <TouchableOpacity
-                        onPress={confirmClearAll}
-                        style={styles.clearBtn}
-                      >
-                        <Text style={styles.clearBtnText}>Clear all</Text>
-                      </TouchableOpacity>
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.categoryChipsRow}
-                      >
-                        {categories.map((cat) => (
-                          <TouchableOpacity
-                            key={cat}
-                            style={[
-                              styles.categoryChip,
-                              selectedCategory === cat &&
-                                styles.categoryChipActive,
-                            ]}
-                            onPress={() => setSelectedCategory(cat as any)}
-                          >
-                            <Text
-                              style={[
-                                styles.categoryChipText,
-                                selectedCategory === cat &&
-                                  styles.categoryChipTextActive,
-                              ]}
-                            >
-                              {cat}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
+              <View style={[styles.workspaceRow, isCompact && styles.workspaceColumn]}>
+                <View style={[styles.panel, styles.recentPanel, isCompact && styles.fullWidthPanel]}>
+                  <View style={[styles.panelHeader, isCompact && styles.panelHeaderStack]}>
+                    <View>
+                      <Text style={styles.sectionTitleLarge}>Recent Expenses</Text>
+                      <Text style={styles.sectionSubtitle}>
+                        Search and review your latest entries.
+                      </Text>
                     </View>
+                    <TouchableOpacity
+                      style={styles.clearButton}
+                      onPress={confirmClearAll}
+                    >
+                      <Text style={styles.clearButtonText}>Clear all</Text>
+                    </TouchableOpacity>
                   </View>
+
                   <TextInput
                     style={styles.searchInput}
-                    placeholder="Search Expenses or notes"
-                    placeholderTextColor="#6B7280"
+                    placeholder="Search expenses, categories, or notes"
+                    placeholderTextColor="#64748B"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                   />
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.categoryRow}
+                  >
+                    {categories.map((category) => (
+                      <TouchableOpacity
+                        key={category}
+                        style={[
+                          styles.categoryChip,
+                          styles.categoryChipFixed,
+                          selectedCategory === category &&
+                            styles.categoryChipActive,
+                        ]}
+                        onPress={() =>
+                          setSelectedCategory(category as typeof selectedCategory)
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.categoryChipText,
+                            selectedCategory === category &&
+                              styles.categoryChipTextActive,
+                          ]}
+                        >
+                          {category}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
                   <ExpenseList
                     expenses={displayedExpenses}
                     onDelete={onDeleteExpense}
                     onEdit={startEditingExpense}
                   />
 
-                  {visibleExpenses.length > 5 && !searchQuery.trim() && (
+                  {visibleExpenses.length > 5 && !searchQuery.trim() ? (
                     <TouchableOpacity
-                      style={styles.showAllBtn}
-                      onPress={() => setShowAllExpenses(!showAllExpenses)}
+                      style={styles.showAllButton}
+                      onPress={() => setShowAllExpenses((value) => !value)}
                     >
-                      <Text style={styles.showAllText}>
+                      <Text style={styles.showAllButtonText}>
                         {showAllExpenses
-                          ? "Show Less"
-                          : `View All (${visibleExpenses.length})`}
+                          ? "Show less"
+                          : `View all ${visibleExpenses.length} expenses`}
                       </Text>
                       <Ionicons
                         name={showAllExpenses ? "chevron-up" : "chevron-down"}
                         size={16}
-                        color="#6366F1"
+                        color="#7DD3FC"
                       />
                     </TouchableOpacity>
-                  )}
+                  ) : null}
+                </View>
+
+                <View style={[styles.panel, styles.signalPanel, isCompact && styles.fullWidthPanel]}>
+                  <Text style={styles.sectionTitle}>Insights</Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Quick context from your current expense activity.
+                  </Text>
+
+                  <View style={styles.signalCard}>
+                    <Text style={styles.signalLabel}>Top category</Text>
+                    <Text style={styles.signalValue}>
+                      {topCategory ? topCategory[0] : "No data yet"}
+                    </Text>
+                    <Text style={styles.signalMeta}>
+                      {topCategory ? formatAmount(topCategory[1]) : "Add expenses"}
+                    </Text>
+                  </View>
+
+                  <View style={styles.signalCard}>
+                    <Text style={styles.signalLabel}>Receipts saved</Text>
+                    <Text style={styles.signalValue}>
+                      {expenses.filter((expense) => expense.imageUrl).length}
+                    </Text>
+                    <Text style={styles.signalMeta}>
+                      Entries with photo proof attached
+                    </Text>
+                  </View>
+
+                  <View style={styles.signalCard}>
+                    <Text style={styles.signalLabel}>Member since</Text>
+                    <Text style={styles.signalValue}>
+                      {user.createdAt
+                        ? new Date(user.createdAt).toLocaleDateString()
+                        : "Today"}
+                    </Text>
+                    <Text style={styles.signalMeta}>{user.email}</Text>
+                  </View>
                 </View>
               </View>
-            </View>
+            </>
+          ) : null}
 
-            {editingExpense && (
-              <BlurView intensity={30} tint="dark" style={styles.editCard}>
-                <Text style={styles.editTitle}>Edit Expense</Text>
-                <TextInput
-                  style={styles.editInput}
-                  placeholder="Description"
-                  placeholderTextColor="#6B7280"
-                  value={editDescription}
-                  onChangeText={setEditDescription}
-                />
-                <TextInput
-                  style={styles.editInput}
-                  placeholder="Amount (₱)"
-                  placeholderTextColor="#6B7280"
-                  keyboardType="numeric"
-                  value={editAmount}
-                  onChangeText={setEditAmount}
-                />
-                <TextInput
-                  style={styles.editInput}
-                  placeholder="Category"
-                  placeholderTextColor="#6B7280"
-                  value={editCategory}
-                  onChangeText={setEditCategory}
-                />
-                <TextInput
-                  style={[styles.editInput, styles.editNotesInput]}
-                  placeholder="Notes"
-                  placeholderTextColor="#6B7280"
-                  multiline
-                  value={editNotes}
-                  onChangeText={setEditNotes}
-                />
-                <View style={styles.editButtonsRow}>
-                  <TouchableOpacity
-                    style={styles.editCancelBtn}
-                    onPress={handleCancelEdit}
-                  >
-                    <Text style={styles.editCancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.editSaveBtn}
-                    onPress={handleSaveEdit}
-                  >
-                    <Text style={styles.editSaveText}>Save</Text>
-                  </TouchableOpacity>
+          {activeTab === "stats" ? (
+              <View style={styles.panel}>
+                <View style={[styles.panelHeader, isCompact && styles.panelHeaderStack]}>
+                <View>
+                  <Text style={styles.sectionTitleLarge}>Expenses Graph</Text>
+                  <Text style={styles.sectionSubtitle}>Category totals for the current data set.</Text>
                 </View>
-              </BlurView>
-            )}
+              </View>
 
-            <View style={styles.userInfo}>
-              <Text style={styles.welcomeText}>Welcome, {user?.name}!</Text>
-              <Text style={styles.emailText}>{user?.email}</Text>
-              {topCategory && (
-                <Text style={styles.loginTimeText}>
-                  Top category this month: {topCategory[0]} (₱
-                  {topCategory[1].toFixed(0)})
-                </Text>
-              )}
-              <Text style={styles.loginTimeText}>
-                Logged in since:{" "}
-                {user?.createdAt
-                  ? new Date(user.createdAt).toLocaleDateString()
-                  : "Today"}
-              </Text>
-            </View>
-          </Animated.View>
-        )}
+              <View style={styles.statsSummaryRow}>
+                <View style={styles.statsSummaryCard}>
+                  <Text style={styles.statsSummaryLabel}>This month</Text>
+                  <Text style={styles.statsSummaryValue}>
+                    {formatAmount(stats.thisMonth)}
+                  </Text>
+                </View>
+                <View style={styles.statsSummaryCard}>
+                  <Text style={styles.statsSummaryLabel}>Last month</Text>
+                  <Text style={styles.statsSummaryValue}>
+                    {formatAmount(stats.lastMonth)}
+                  </Text>
+                </View>
+              </View>
 
-        {activeTab === "stats" && (
-          <View style={styles.statsTab}>
-            <Text style={styles.sectionTitle}>Spending insights</Text>
-            <Text style={styles.statsTabSubtitle}>
-              See how your Expense are distributed.
-            </Text>
-            <View style={styles.statsTabRow}>
-              <Text style={styles.statsTabLabel}>This month</Text>
-              <Text style={styles.statsTabValue}>
-                ₱{stats.thisMonth.toFixed(0)}
-              </Text>
-            </View>
-            <View style={styles.statsTabRow}>
-              <Text style={styles.statsTabLabel}>Last month</Text>
-              <Text style={styles.statsTabValue}>
-                ₱{stats.lastMonth.toFixed(0)}
-              </Text>
-            </View>
-            <View style={styles.statsTabRow}>
-              <Text style={styles.statsTabLabel}>Total recorded</Text>
-              <Text style={styles.statsTabValue}>
-                ₱{stats.total.toFixed(0)}
-              </Text>
-            </View>
-
-            <View style={styles.chartSection}>
-              <Text style={styles.sectionTitle}>Expenses Graph</Text>
-              {Object.keys(categoryBreakdown).length === 0 ? (
-                <Text style={styles.statsTabSubtitle}>
-                  No expenses yet. Add some in Overview.
+              {graphEntries.length === 0 ? (
+                <Text style={styles.emptyGraphText}>
+                  No expenses yet. Add one in the overview tab to populate the
+                  graph.
                 </Text>
               ) : (
-                <View
-                  style={[
-                    styles.tradingChartContainer,
-                    isLargeScreen && {
-                      maxWidth: 800,
-                      alignSelf: "center",
-                      width: "100%",
-                    },
-                  ]}
+                <ScrollView
+                  horizontal={isCompact}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={isCompact ? styles.graphScrollContent : undefined}
                 >
-                  {/* Background Grid Lines - Horizontal */}
-                  {[0, 1, 2, 3, 4].map((i) => {
-                    const maxVal = Math.max(
-                      ...Object.values(categoryBreakdown),
-                      1000,
-                    );
-                    const labelVal = (maxVal * (i / 4)).toFixed(0);
-                    // Use fixed pixel steps for perfect alignment on all platforms
-                    const gridBottom = i * 40 + 36;
+                <View style={[styles.graphShell, isCompact && styles.graphShellCompact]}>
+                  {graphEntries.map(([category, total], index) => {
+                    const max = Math.max(...graphEntries.map(([, value]) => value), 1);
+                    const height = Math.max((total / max) * 210, 26);
+                    const gradients: Record<number, string[]> = {
+                      0: ["#22D3EE", "#3B82F6"],
+                      1: ["#34D399", "#10B981"],
+                      2: ["#F59E0B", "#FB7185"],
+                      3: ["#A78BFA", "#8B5CF6"],
+                    };
+                    const barColors =
+                      gradients[index] || ["#38BDF8", "#818CF8"];
+
                     return (
-                      <View
-                        key={`h-${i}`}
-                        style={[styles.tradingGridLine, { bottom: gridBottom }]}
-                      >
-                        <Text style={styles.tradingYLabel}>₱{labelVal}</Text>
+                      <View key={category} style={[styles.graphColumn, isCompact && styles.graphColumnCompact]}>
+                        <Text style={styles.graphValue}>
+                          {formatAmount(total)}
+                        </Text>
+                        <View style={styles.graphTrack}>
+                          <LinearGradient
+                            colors={barColors as [string, string, ...string[]]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 0, y: 1 }}
+                            style={[styles.graphBar, { height }]}
+                          />
+                        </View>
+                        <Text style={styles.graphLabel} numberOfLines={2}>
+                          {category}
+                        </Text>
                       </View>
                     );
                   })}
-                  {/* Background Grid Lines - Vertical */}
-                  {[0, 1, 2, 3, 4, 5].map((i) => (
-                    <View
-                      key={`v-${i}`}
-                      style={[
-                        styles.tradingGridLineVertical,
-                        { left: `${i * 18 + 5}%` },
-                      ]}
-                    />
-                  ))}
-
-                  <View style={styles.tradingChartGrid}>
-                    {Object.entries(categoryBreakdown)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([cat, total], index) => {
-                        const maxVal = Math.max(
-                          ...Object.values(categoryBreakdown),
-                          1000,
-                        );
-                        // Lowered the multiplier to 140 (from 160) to provide 20px of "Headroom"
-                        const barHeight = (total / maxVal) * 140;
-
-                        const gradientMap: Record<number, string[]> = {
-                          0: ["#4F46E5", "#6366F1"], // Indigo
-                          1: ["#10B981", "#34D399"], // Emerald
-                          2: ["#F59E0B", "#FBBF24"], // Amber
-                          3: ["#EF4444", "#F87171"], // red
-                        };
-                        const defaultColors = ["#8B5CF6", "#C084FC"]; // purple
-                        const barColors = gradientMap[index] || defaultColors;
-
-                        return (
-                          <View key={cat} style={styles.tradingBarColumn}>
-                            <View style={styles.tradingBarWrapper}>
-                              <View
-                                style={[
-                                  styles.tradingBarContainer,
-                                  { height: barHeight },
-                                ]}
-                              >
-                                <LinearGradient
-                                  colors={
-                                    barColors as [string, string, ...string[]]
-                                  }
-                                  style={styles.tradingBarGradient}
-                                >
-                                  {/* Glow Top Cap */}
-                                  <View style={styles.tradingBarGlow} />
-                                </LinearGradient>
-                              </View>
-                            </View>
-                            <Text
-                              style={styles.tradingBarLabel}
-                              numberOfLines={1}
-                            >
-                              {cat}
-                            </Text>
-                            <Text style={styles.tradingBarValue}>
-                              ₱{total.toFixed(0)}
-                            </Text>
-                          </View>
-                        );
-                      })}
-                  </View>
                 </View>
+                </ScrollView>
               )}
             </View>
-          </View>
-        )}
+          ) : null}
 
-        {activeTab === "profile" && (
-          <View style={styles.profileSection}>
-            <Text style={styles.sectionTitle}>Profile</Text>
+          {activeTab === "profile" ? (
+            <>
+              <View style={styles.panel}>
+                <Text style={styles.sectionTitle}>Profile</Text>
+                <Text style={styles.sectionSubtitle}>Manage your account, photo, and security details.</Text>
 
-            <View style={styles.profileCard}>
-              {isEditingProfile ? (
-                <>
-                  <Text style={styles.profileName}>Edit Profile</Text>
-                  <TextInput
-                    style={styles.profileInput}
-                    placeholder="Name"
-                    placeholderTextColor="#9CA3AF"
-                    value={editName}
-                    onChangeText={setEditName}
-                  />
-                  <TextInput
-                    style={styles.profileInput}
-                    placeholder="Email"
-                    placeholderTextColor="#9CA3AF"
-                    value={editEmail}
-                    onChangeText={setEditEmail}
-                  />
-                  <View style={styles.profileActionButtons}>
-                    <TouchableOpacity
-                      style={styles.profileCancelBtn}
-                      onPress={handleCancelProfile}
-                    >
-                      <Text style={styles.profileCancelText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.profileSaveBtn}
-                      onPress={handleSaveProfile}
-                    >
-                      <Text style={styles.profileSaveText}>Save</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={styles.profileHeaderRow}>
-                    <TouchableOpacity
-                      onPress={handlePickImage}
-                      activeOpacity={0.7}
-                    >
-                      {renderAvatar(60, 24)}
-                      <View
-                        style={{
-                          position: "absolute",
-                          right: -4,
-                          bottom: -4,
-                          backgroundColor: "#4F46E5",
-                          borderRadius: 12,
-                          width: 24,
-                          height: 24,
-                          justifyContent: "center",
-                          alignItems: "center",
-                          borderWidth: 2,
-                          borderColor: "#111827",
-                        }}
-                      >
-                        <Ionicons name="camera" size={12} color="#FFF" />
+                <View style={styles.profileCard}>
+                  {isEditingProfile ? (
+                    <>
+                      <TextInput
+                        style={styles.profileInput}
+                        placeholder="Name"
+                        placeholderTextColor="#64748B"
+                        value={editName}
+                        onChangeText={setEditName}
+                      />
+                      <TextInput
+                        style={styles.profileInput}
+                        placeholder="Email"
+                        placeholderTextColor="#64748B"
+                        value={editEmail}
+                        onChangeText={setEditEmail}
+                      />
+                      <View style={styles.profileActionRow}>
+                        <TouchableOpacity
+                          style={styles.secondaryButton}
+                          onPress={() => {
+                            setEditName(user.name);
+                            setEditEmail(user.email);
+                            setIsEditingProfile(false);
+                          }}
+                        >
+                          <Text style={styles.secondaryButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.primaryButton}
+                          onPress={handleSaveProfile}
+                        >
+                          <Text style={styles.primaryButtonText}>Save</Text>
+                        </TouchableOpacity>
                       </View>
-                    </TouchableOpacity>
-                    <View style={{ flex: 1, marginLeft: 16 }}>
-                      <Text style={styles.profileName}>{user.name}</Text>
-                      <Text style={styles.profileEmail}>{user.email}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.profileDivider} />
-                  <Text style={styles.profileMeta}>
-                    Member since{" "}
-                    {user.createdAt
-                      ? new Date(user.createdAt).toLocaleDateString()
-                      : "Today"}
-                  </Text>
-                  <View style={styles.profileButtonsRow}>
-                    <TouchableOpacity
-                      style={styles.profileEditBtn}
-                      onPress={() => setIsEditingProfile(true)}
-                    >
-                      <Ionicons
-                        name="pencil-outline"
-                        size={14}
-                        color="#4F46E5"
-                      />
-                      <Text style={styles.profileEditText}>Edit Info</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.profileSecurityBtn}
-                      onPress={() => setShowPasswordFields(!showPasswordFields)}
-                    >
-                      <Ionicons
-                        name="lock-closed-outline"
-                        size={14}
-                        color="#F59E0B"
-                      />
-                      <Text style={styles.profileSecurityText}>
-                        Change Password
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
-            </View>
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.profileTopRow}>
+                        <TouchableOpacity
+                          onPress={handlePickAvatar}
+                          style={styles.profileAvatarWrap}
+                        >
+                          {renderAvatar(64, 26)}
+                          <View style={styles.avatarCamera}>
+                            <Ionicons
+                              name="camera-outline"
+                              size={14}
+                              color="#F8FAFC"
+                            />
+                          </View>
+                        </TouchableOpacity>
 
-            {showPasswordFields && !isEditingProfile && (
-              <View style={styles.profileCard}>
-                <Text style={styles.profileName}>Change Password</Text>
+                        <View style={styles.profileCopy}>
+                          <Text style={styles.profileName}>{user.name}</Text>
+                          <Text style={styles.profileEmail}>{user.email}</Text>
+                          <Text style={styles.profileMeta}>
+                            Logged in since{" "}
+                            {user.createdAt
+                              ? new Date(user.createdAt).toLocaleDateString()
+                              : "Today"}
+                          </Text>
+                        </View>
+                      </View>
 
-                {passwordSuccess ? (
-                  <View style={styles.passwordSuccessContainer}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={16}
-                      color="#10B981"
-                    />
-                    <Text style={styles.passwordSuccessText}>
-                      {passwordSuccess}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {passwordError ? (
-                  <View style={styles.passwordErrorContainer}>
-                    <Ionicons name="alert-circle" size={16} color="#EF4444" />
-                    <Text style={styles.passwordErrorText}>
-                      {passwordError}
-                    </Text>
-                  </View>
-                ) : null}
-
-                <TextInput
-                  style={styles.profileInput}
-                  placeholder="Current Password"
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry
-                  value={oldPassword}
-                  onChangeText={setOldPassword}
-                  editable={!isChangingPassword}
-                />
-                <TextInput
-                  style={styles.profileInput}
-                  placeholder="New Password"
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  editable={!isChangingPassword}
-                />
-                <TextInput
-                  style={styles.profileInput}
-                  placeholder="Confirm New Password"
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  editable={!isChangingPassword}
-                />
-                <Text style={styles.passwordHint}>
-                  Password must be at least 6 characters
-                </Text>
-                <View style={styles.profileActionButtons}>
-                  <TouchableOpacity
-                    style={styles.profileCancelBtn}
-                    onPress={handleCancelPassword}
-                    disabled={isChangingPassword}
-                  >
-                    <Text style={styles.profileCancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.profileSaveBtn,
-                      { backgroundColor: "#F59E0B" },
-                    ]}
-                    onPress={handleChangePassword}
-                    disabled={isChangingPassword}
-                  >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 6,
-                      }}
-                    >
-                      {isChangingPassword && (
-                        <ActivityIndicator size="small" color="#FFF" />
-                      )}
-                      <Text style={styles.profileSaveText}>
-                        {isChangingPassword ? "Updating..." : "Update Password"}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
+                      <View style={styles.profileActionRow}>
+                        <TouchableOpacity
+                          style={styles.secondaryButton}
+                          onPress={() => setIsEditingProfile(true)}
+                        >
+                          <Text style={styles.secondaryButtonText}>
+                            Edit profile
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.secondaryButton}
+                          onPress={() =>
+                            setShowPasswordFields((value) => !value)
+                          }
+                        >
+                          <Text style={styles.secondaryButtonText}>
+                            Change password
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  )}
                 </View>
+
+                {showPasswordFields ? (
+                  <View style={styles.passwordCard}>
+                    {passwordSuccess ? (
+                      <Text style={styles.passwordSuccess}>{passwordSuccess}</Text>
+                    ) : null}
+                    {passwordError ? (
+                      <Text style={styles.passwordError}>{passwordError}</Text>
+                    ) : null}
+                    <TextInput
+                      style={styles.profileInput}
+                      placeholder="Current password"
+                      placeholderTextColor="#64748B"
+                      secureTextEntry
+                      value={oldPassword}
+                      onChangeText={setOldPassword}
+                    />
+                    <TextInput
+                      style={styles.profileInput}
+                      placeholder="New password"
+                      placeholderTextColor="#64748B"
+                      secureTextEntry
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                    />
+                    <TextInput
+                      style={styles.profileInput}
+                      placeholder="Confirm new password"
+                      placeholderTextColor="#64748B"
+                      secureTextEntry
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                    />
+                    <TouchableOpacity
+                      style={styles.primaryButton}
+                      onPress={handleChangePassword}
+                      disabled={isChangingPassword}
+                    >
+                      {isChangingPassword ? (
+                        <ActivityIndicator size="small" color="#020617" />
+                      ) : (
+                        <Text style={styles.primaryButtonText}>
+                          Update password
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
               </View>
-            )}
 
-            <View style={styles.profileSecuritySection}>
-              <Ionicons
-                name="shield-checkmark"
-                size={20}
-                color="#F59E0B"
-                style={{ marginBottom: 8 }}
-              />
-              <Text style={styles.profileSecuritySectionTitle}>
-                Account Security
-              </Text>
-              <Text style={styles.profileSecuritySectionText}>
-                Your password is encrypted and secure. Change it regularly for
-                better account protection.
-              </Text>
-            </View>
+              <View style={styles.panel}>
+                <Text style={styles.sectionTitle}>Legal and App Info</Text>
+                <Text style={styles.sectionSubtitle}>Terms and product information for the app.</Text>
 
-            <TouchableOpacity
-              style={styles.profileLogoutBtn}
-              onPress={confirmLogout}
-            >
-              <Ionicons
-                name="log-out-outline"
-                size={16}
-                color="#EF4444"
-                style={{ marginRight: 8 }}
-              />
-              <Text style={styles.profileLogoutText}>Log Out</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+                <TouchableOpacity
+                  style={styles.legalRow}
+                  onPress={() => setInfoSheet("terms")}
+                >
+                  <View>
+                    <Text style={styles.legalTitle}>Terms of Agreement / Use</Text>
+                    <Text style={styles.legalSubtitle}>
+                      Privacy, storage, and acceptable receipt uploads.
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={18}
+                    color="#7DD3FC"
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.legalRow}
+                  onPress={() => setInfoSheet("about")}
+                >
+                  <View>
+                    <Text style={styles.legalTitle}>About EyeGasto</Text>
+                    <Text style={styles.legalSubtitle}>
+                      Product purpose and what makes this tracker different.
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={18}
+                    color="#7DD3FC"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={styles.logoutButton}
+                onPress={confirmLogout}
+              >
+                <Ionicons
+                  name="log-out-outline"
+                  size={16}
+                  color="#FCA5A5"
+                />
+                <Text style={styles.logoutButtonText}>Log Out</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
+        </Animated.View>
       </ScrollView>
 
-      <BlurView intensity={35} tint="dark" style={styles.bottomNav}>
-        <TouchableOpacity
-          style={[
-            styles.bottomNavItem,
-            activeTab === "overview" && styles.bottomNavItemActive,
-          ]}
-          onPress={() => setActiveTab("overview")}
-        >
-          <Ionicons
-            name="home-outline"
-            size={20}
-            color={activeTab === "overview" ? "#F9FAFB" : "#9CA3AF"}
-          />
-          <Text
-            style={[
-              styles.bottomNavLabel,
-              activeTab === "overview" && styles.bottomNavLabelActive,
-            ]}
-          >
-            Overview
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.bottomNavItem,
-            activeTab === "stats" && styles.bottomNavItemActive,
-          ]}
-          onPress={() => setActiveTab("stats")}
-        >
-          <Ionicons
-            name="stats-chart-outline"
-            size={20}
-            color={activeTab === "stats" ? "#F9FAFB" : "#9CA3AF"}
-          />
-          <Text
-            style={[
-              styles.bottomNavLabel,
-              activeTab === "stats" && styles.bottomNavLabelActive,
-            ]}
-          >
-            Stats
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.bottomNavItem,
-            activeTab === "profile" && styles.bottomNavItemActive,
-          ]}
-          onPress={() => setActiveTab("profile")}
-        >
-          <Ionicons
-            name="person-circle-outline"
-            size={20}
-            color={activeTab === "profile" ? "#F9FAFB" : "#9CA3AF"}
-          />
-          <Text
-            style={[
-              styles.bottomNavLabel,
-              activeTab === "profile" && styles.bottomNavLabelActive,
-            ]}
-          >
-            Profile
-          </Text>
-        </TouchableOpacity>
+      <BlurView
+        intensity={26}
+        tint="dark"
+        style={[styles.bottomNav, isCompact && styles.bottomNavCompact]}
+      >
+        {[
+          { key: "overview", icon: "grid-outline", label: "Overview" },
+          { key: "stats", icon: "stats-chart-outline", label: "Stats" },
+          { key: "profile", icon: "person-circle-outline", label: "Profile" },
+        ].map((item) => {
+          const active = activeTab === item.key;
+          return (
+            <TouchableOpacity
+              key={item.key}
+              style={[styles.navItem, active && styles.navItemActive]}
+              onPress={() => setActiveTab(item.key as typeof activeTab)}
+            >
+              <Ionicons
+                name={item.icon as any}
+                size={20}
+                color={active ? "#E0F2FE" : "#64748B"}
+              />
+              <Text style={[styles.navLabel, active && styles.navLabelActive]}>
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </BlurView>
+
+      <Modal
+        animationType="slide"
+        transparent
+        visible={Boolean(editingExpense)}
+        onRequestClose={closeEditingExpense}
+      >
+        <View style={styles.modalBackdrop}>
+          <BlurView
+            intensity={36}
+            tint="dark"
+            style={[styles.modalCard, isCompact && styles.modalCardCompact]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Expense</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={closeEditingExpense}
+              >
+                <Ionicons name="close" size={18} color="#E2E8F0" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.modalBodyScroll}
+              contentContainerStyle={styles.modalBodyContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <TextInput
+                style={styles.profileInput}
+                placeholder="Description"
+                placeholderTextColor="#64748B"
+                value={editDescription}
+                onChangeText={setEditDescription}
+              />
+              <TextInput
+                style={styles.profileInput}
+                placeholder="Amount"
+                placeholderTextColor="#64748B"
+                value={editAmount}
+                onChangeText={setEditAmount}
+                keyboardType="numeric"
+              />
+              <TextInput
+                style={styles.profileInput}
+                placeholder="Category"
+                placeholderTextColor="#64748B"
+                value={editCategory}
+                onChangeText={setEditCategory}
+              />
+              <TextInput
+                style={[styles.profileInput, styles.modalNotes]}
+                placeholder="Notes"
+                placeholderTextColor="#64748B"
+                value={editNotes}
+                onChangeText={setEditNotes}
+                multiline
+              />
+
+              <TouchableOpacity
+                style={styles.legalRow}
+                onPress={pickExpenseReceipt}
+              >
+                <View>
+                  <Text style={styles.legalTitle}>Receipt image</Text>
+                  <Text style={styles.legalSubtitle}>
+                    Upload or replace the saved receipt for this expense.
+                  </Text>
+                </View>
+                <Ionicons name="image-outline" size={18} color="#7DD3FC" />
+              </TouchableOpacity>
+
+              {editImageUrl ? (
+                <View style={styles.editReceiptPreview}>
+                  <Image
+                    source={{ uri: editImageUrl }}
+                    style={styles.editReceiptImage}
+                    contentFit="cover"
+                  />
+                <TouchableOpacity
+                  style={styles.editReceiptRemove}
+                  onPress={() => setEditImageUrl(null)}
+                >
+                  <Ionicons name="close" size={16} color="#F8FAFC" />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            </ScrollView>
+
+            <View style={[styles.modalFooter, isVeryCompact && styles.modalActionsStack]}>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={closeEditingExpense}
+                disabled={isSavingEdit}
+              >
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={handleSaveEdit}
+                disabled={isSavingEdit}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {isSavingEdit ? "Saving..." : "Save changes"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={Boolean(infoSheet)}
+        onRequestClose={() => setInfoSheet(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <BlurView intensity={34} tint="dark" style={styles.infoCard}>
+            <Text style={styles.modalTitle}>
+              {infoSheet ? infoContent[infoSheet].title : ""}
+            </Text>
+            <Text style={styles.infoBody}>
+              {infoSheet ? infoContent[infoSheet].body : ""}
+            </Text>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => setInfoSheet(null)}
+            >
+              <Text style={styles.primaryButtonText}>Close</Text>
+            </TouchableOpacity>
+          </BlurView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: "#0B1120",
+  safe: { flex: 1, backgroundColor: "#020617" },
+  backgroundOrbOne: {
+    position: "absolute",
+    top: -80,
+    right: -60,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+  },
+  backgroundOrbTwo: {
+    position: "absolute",
+    bottom: 120,
+    left: -90,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: "rgba(99, 102, 241, 0.06)",
   },
   header: {
-    marginTop: 25,
     paddingHorizontal: 20,
-    paddingVertical: 18,
-    backgroundColor: "#111827",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#1F2937",
-    alignItems: "center",
-  },
-  headerContent: {
+    paddingTop: Platform.OS === "android" ? 22 : 18,
+    paddingBottom: 12,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    width: "100%",
-    maxWidth: 1200,
+    gap: 12,
+  },
+  headerCompact: {
+    alignItems: "flex-start",
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+    flex: 1,
   },
-  headerLogo: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#4F46E5",
-    justifyContent: "center",
+  headerTitle: { fontSize: 24, fontWeight: "900", color: "#F8FAFC" },
+  headerSubtitle: { marginTop: 3, fontSize: 12, color: "#64748B" },
+  headerBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+    backgroundColor: "rgba(15, 23, 42, 0.78)",
+    flexDirection: "row",
     alignItems: "center",
+    gap: 6,
   },
-  headerLogoText: {
-    fontSize: 18,
-    color: "#FACC15",
-  },
-  headerTitle: {
-    fontSize: 24,
+  headerBadgeText: {
+    fontSize: 11,
     fontWeight: "700",
-    color: "#f1f5fa",
+    color: "#CBD5E1",
+    textTransform: "uppercase",
+    letterSpacing: 0.9,
   },
-  headerSubtitle: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    marginTop: 4,
-    opacity: 0.9,
+  avatarFallback: { alignItems: "center", justifyContent: "center" },
+  avatarText: { color: "#020617", fontWeight: "900" },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 120, gap: 14 },
+  heroCard: {
+    borderRadius: 26,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+    backgroundColor: "rgba(8, 15, 30, 0.84)",
   },
-  logoutBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(127, 128, 125, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    ...Platform.select({
-      web: { cursor: "pointer" } as any,
-    }),
-  },
-  logoutText: {
-    fontSize: 20,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    paddingBottom: 140,
-    backgroundColor: "#020617",
-    maxWidth: 1200,
-    width: "100%",
-    alignSelf: "center",
-  },
-  statsSection: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
+  heroEyebrow: {
+    fontSize: 11,
+    color: "#7DD3FC",
     fontWeight: "700",
-    color: "#E5E7EB",
-    marginBottom: 12,
+    textTransform: "uppercase",
+    letterSpacing: 1.3,
   },
-  statsGrid: {
-    gap: 10,
-    flexDirection: Platform.OS === "web" ? "row" : "column",
-    flexWrap: "wrap",
-    justifyContent: Platform.OS === "web" ? "space-between" : "flex-start",
+  heroTitle: {
+    marginTop: 8,
+    fontSize: 26,
+    lineHeight: 31,
+    fontWeight: "900",
+    color: "#F8FAFC",
+    maxWidth: 560,
   },
-  chartSection: {
-    marginBottom: 24,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(11, 12, 15, 0.85)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F2937",
+  heroSubtitle: {
+    marginTop: 8,
+    maxWidth: 560,
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#94A3B8",
   },
-  chartContainer: {
+  panel: {
+    borderRadius: 24,
+    padding: 18,
+    backgroundColor: "rgba(8, 15, 30, 0.78)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.08)",
+  },
+  addPanel: { marginTop: 16 },
+  panelHeader: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    height: 120,
     justifyContent: "space-between",
-    paddingHorizontal: 4,
-  },
-  chartGrid: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: "space-between",
-    paddingVertical: 4,
-  },
-  chartGridLine: {
-    height: 1,
-    backgroundColor: "#2b3645",
-    opacity: 0.5,
-  },
-  chartBars: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    flex: 1,
-    justifyContent: "space-between",
-    paddingHorizontal: 4,
-  },
-  chartBarWrapper: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "flex-end",
-    height: "100%",
-  },
-  chartBar: {
-    width: 4,
-    borderRadius: 2,
-    marginBottom: 4,
-  },
-  chartDayLabel: {
-    fontSize: 10,
-    color: "#e2e8f5",
-    marginTop: 4,
-  },
-  categoryChartContainer: {
-    gap: 16,
-    marginTop: 12,
-  },
-  categoryChartRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 12,
   },
-  categoryChartLabel: {
+  panelHeaderStack: {
+    flexDirection: "column",
+  },
+  sectionTitle: { fontSize: 19, fontWeight: "800", color: "#F8FAFC" },
+  sectionTitleLarge: { fontSize: 22, fontWeight: "900", color: "#F8FAFC" },
+  sectionSubtitle: {
+    marginTop: 4,
     fontSize: 12,
-    color: "#9CA3AF",
-    width: 90,
-  },
-  categoryChartBarWrapper: {
-    flex: 1,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: "rgba(15,23,42,0.9)",
-    overflow: "hidden",
-  },
-  categoryChartBar: {
-    height: "100%",
-    borderRadius: 6,
-    backgroundColor: "#4F46E5",
-  },
-  categoryChartAmount: {
-    fontSize: 12,
-    color: "#E5E7EB",
-    fontWeight: "600",
-    width: 70,
-    textAlign: "right",
-  },
-  tradingChartContainer: {
-    height: 240,
-    marginTop: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    backgroundColor: "rgba(15, 23, 42, 0.4)",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
-    position: "relative",
-    overflow: "hidden", // Prevent bleeding outside
-  },
-  tradingGridLine: {
-    position: "absolute",
-    left: 10,
-    right: 55, // Increased room for labels
-    height: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  tradingYLabel: {
-    position: "absolute",
-    right: -48, // Adjusted position
-    fontSize: 9,
+    lineHeight: 18,
     color: "#64748B",
+    maxWidth: 520,
+  },
+  iconToggle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(30, 41, 59, 0.92)",
+  },
+  quickAddRow: { paddingTop: 12, gap: 8 },
+  quickAddChip: {
+    width: 118,
+    borderRadius: 18,
+    padding: 13,
+    backgroundColor: "rgba(15, 23, 42, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.1)",
+  },
+  quickAddChipLabel: { fontSize: 14, fontWeight: "700", color: "#F8FAFC" },
+  quickAddChipAmount: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#94A3B8",
     fontWeight: "600",
-    width: 45,
-    textAlign: "left",
   },
-  tradingGridLineVertical: {
-    position: "absolute",
-    top: 10,
-    bottom: 20,
-    width: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.02)",
-  },
-  tradingChartGrid: {
-    flex: 1,
+  statsGrid: {
+    marginTop: 16,
     flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-around",
-    zIndex: 1,
-    paddingTop: 30, // Extra headroom
-    paddingBottom: 36,
-    paddingRight: 55,
+    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
-  tradingBarColumn: {
-    flex: 1,
-    alignItems: "center",
-    maxWidth: Platform.OS === "web" ? 80 : 60,
+  statsGridCompact: {
+    gap: 0,
   },
-  tradingBarWrapper: {
-    flex: 1,
-    width: "100%",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  tradingBarContainer: {
-    width: Platform.OS === "web" ? 24 : 18,
-    borderRadius: 12, // Ensure full rounding
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-  },
-  tradingBarGradient: {
-    flex: 1,
-    borderRadius: 10,
-  },
-  tradingBarGlow: {
-    height: 4,
-    width: "100%",
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
-  },
-  tradingBarLabel: {
-    fontSize: 10,
-    color: "#9CA3AF",
-    marginBottom: 2,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  tradingBarValue: {
-    fontSize: 11,
-    color: "#F9FAFB",
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  budgetContainer: {
-    marginTop: 14,
-    marginBottom: 14,
-    padding: 18,
-    borderRadius: 12,
-    backgroundColor: "rgba(15,23,42,0.85)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F2937",
+  budgetShell: {
+    marginTop: 8,
+    borderRadius: 20,
+    padding: 16,
+    backgroundColor: "rgba(2, 6, 23, 0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.06)",
   },
   budgetHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
+    alignItems: "center",
+    gap: 14,
   },
+  budgetHeaderStack: {
+    flexDirection: "column",
+    alignItems: "stretch",
+  },
+  budgetBlock: { flex: 1 },
+  budgetSummary: { alignItems: "flex-end" },
   budgetLabel: {
     fontSize: 12,
-    color: "#9CA3AF",
-  },
-  budgetValue: {
-    fontSize: 12,
-    color: "#E5E7EB",
-    fontWeight: "600",
+    fontWeight: "700",
+    color: "#94A3B8",
+    textTransform: "uppercase",
+    letterSpacing: 0.9,
   },
   budgetInput: {
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#374151",
-    backgroundColor: "rgba(15,23,42,0.9)",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: "#E5E7EB",
-    fontSize: 14,
-    width: 140,
-    marginTop: 4,
+    marginTop: 8,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "rgba(15, 23, 42, 0.96)",
+    color: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
   },
-  budgetBarBackground: {
-    height: 8,
+  budgetValue: {
+    marginTop: 8,
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#F8FAFC",
+  },
+  budgetTrack: {
+    marginTop: 16,
+    height: 12,
     borderRadius: 999,
-    backgroundColor: "#111827",
     overflow: "hidden",
+    backgroundColor: "rgba(30, 41, 59, 0.9)",
   },
-  budgetBarFill: {
-    height: "100%",
+  budgetFill: { height: "100%", borderRadius: 999 },
+  workspaceRow: { flexDirection: "row", gap: 16, flexWrap: "wrap" },
+  workspaceColumn: { flexDirection: "column" },
+  recentPanel: { flex: 2, minWidth: 320 },
+  signalPanel: { flex: 1, minWidth: 280 },
+  fullWidthPanel: { minWidth: "100%", width: "100%", flex: 0 },
+  clearButton: {
     borderRadius: 999,
-    backgroundColor: "#22C55E",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: "rgba(127, 29, 29, 0.18)",
   },
-  formSection: {
-    marginBottom: 24,
+  clearButtonText: { color: "#FCA5A5", fontWeight: "700" },
+  searchInput: {
+    marginTop: 16,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    color: "#F8FAFC",
+    backgroundColor: "rgba(15, 23, 42, 0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
   },
-  formHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  toggleBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#4F46E5",
-    justifyContent: "center",
-    alignItems: "center",
-    ...Platform.select({
-      web: { cursor: "pointer" } as any,
-    }),
-  },
-  toggleText: {
-    fontSize: 24,
-    color: "#fff",
-    fontWeight: "bold",
-  },
-  listSection: {
-    marginBottom: 20,
-  },
-  listHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  listHeaderActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  categoryChipsRow: {
-    paddingLeft: 8,
-    gap: 6,
-  },
+  categoryRow: { paddingTop: 12, paddingBottom: 4, gap: 8 },
   categoryChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
     borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#374151",
-    backgroundColor: "rgba(15,23,42,0.7)",
-    ...Platform.select({
-      web: { cursor: "pointer" } as any,
-    }),
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    backgroundColor: "rgba(15, 23, 42, 0.84)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+  },
+  categoryChipFixed: {
+    minWidth: 96,
+    alignItems: "center",
+    justifyContent: "center",
   },
   categoryChipActive: {
-    backgroundColor: "#4F46E5",
-    borderColor: "#6366F1",
+    backgroundColor: "rgba(34, 211, 238, 0.14)",
+    borderColor: "rgba(34, 211, 238, 0.24)",
   },
-  categoryChipText: {
-    fontSize: 11,
-    color: "#9CA3AF",
-  },
-  categoryChipTextActive: {
-    color: "#F9FAFB",
-    fontWeight: "600",
-  },
-  clearBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#4B5563",
-    backgroundColor: "rgba(15,23,42,0.8)",
-    ...Platform.select({
-      web: { cursor: "pointer" } as any,
-    }),
-  },
-  clearBtnText: {
-    fontSize: 11,
-    color: "#F97316",
-    fontWeight: "600",
-  },
-  showAllBtn: {
+  categoryChipText: { color: "#94A3B8", fontWeight: "700" },
+  categoryChipTextActive: { color: "#CFFAFE" },
+  showAllButton: {
+    marginTop: 10,
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    marginTop: 8,
-    backgroundColor: "rgba(99, 102, 241, 0.05)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(99, 102, 241, 0.1)",
-    gap: 8,
-    ...Platform.select({
-      web: { cursor: "pointer" } as any,
-    }),
-  },
-  showAllText: {
-    fontSize: 13,
-    color: "#6366F1",
-    fontWeight: "700",
-  },
-  quickAddWrapper: {
-    marginTop: 8,
-    borderRadius: 999,
-    overflow: "hidden",
-  },
-  quickAddRow: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
     gap: 8,
   },
-  quickAddChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "rgba(15,23,42,0.8)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F2937",
-    ...Platform.select({
-      web: { cursor: "pointer" } as any,
-    }),
-  },
-  quickAddText: {
-    fontSize: 12,
-    color: "#E5E7EB",
-    fontWeight: "500",
-  },
-  responsiveRow: {
-    flexDirection: "row",
-    gap: 24,
-  },
-  leftCol: {
-    flex: 1.2,
-  },
-  rightCol: {
-    flex: 2,
-  },
-  searchInput: {
-    marginTop: 10,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#374151",
-    backgroundColor: "rgba(15,23,42,0.9)",
-    color: "#E5E7EB",
-    fontSize: 13,
-  },
-  editCard: {
-    marginTop: 8,
-    marginBottom: 12,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: "rgba(15,23,42,0.8)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F2937",
-  },
-  editTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#E5E7EB",
-    marginBottom: 8,
-  },
-  editInput: {
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#374151",
-    backgroundColor: "rgba(15,23,42,0.9)",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    color: "#E5E7EB",
-    fontSize: 13,
-    marginBottom: 8,
-  },
-  editNotesInput: {
-    height: 64,
-    textAlignVertical: "top",
-  },
-  editButtonsRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 8,
-    marginTop: 6,
-  },
-  editCancelBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#4B5563",
-    backgroundColor: "transparent",
-  },
-  editCancelText: {
-    fontSize: 12,
-    color: "#9CA3AF",
-  },
-  editSaveBtn: {
-    backgroundColor: "#4F46E5",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    ...Platform.select({
-      web: { cursor: "pointer" } as any,
-    }),
-  },
-  editSaveText: {
-    fontSize: 12,
-    color: "#F9FAFB",
-    fontWeight: "600",
-  },
-  statsTab: {
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: "rgba(15,23,42,0.85)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F2937",
-  },
-  statsTabSubtitle: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    marginBottom: 8,
-  },
-  statsTabRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
-  statsTabLabel: {
-    fontSize: 13,
-    color: "#9CA3AF",
-  },
-  statsTabValue: {
-    fontSize: 13,
-    color: "#E5E7EB",
-    fontWeight: "600",
-  },
-  statsCategories: {
+  showAllButtonText: { color: "#7DD3FC", fontWeight: "700" },
+  signalCard: {
     marginTop: 14,
+    borderRadius: 18,
+    padding: 15,
+    backgroundColor: "rgba(15, 23, 42, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.1)",
   },
-  statsCategoriesTitle: {
-    fontSize: 13,
-    color: "#E5E7EB",
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  statsCategoryRow: {
-    marginTop: 6,
-  },
-  statsCategoryLabel: {
+  signalLabel: {
     fontSize: 12,
-    color: "#9CA3AF",
-    marginBottom: 2,
-  },
-  statsCategoryBarBackground: {
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: "#111827",
-    overflow: "hidden",
-  },
-  statsCategoryBarFill: {
-    height: "100%",
-    borderRadius: 999,
-    backgroundColor: "#6366F1",
-  },
-  statsCategoryAmount: {
-    fontSize: 11,
-    color: "#E5E7EB",
-    marginTop: 2,
-  },
-  profileSection: {
-    marginTop: 16,
-  },
-  profileCard: {
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: "rgba(15,23,42,0.85)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F2937",
-    marginBottom: 12,
-  },
-  profileName: {
-    fontSize: 18,
     fontWeight: "700",
-    color: "#F9FAFB",
-    marginBottom: 12,
+    color: "#94A3B8",
+    textTransform: "uppercase",
+    letterSpacing: 0.9,
   },
-  profileEmail: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    marginTop: 2,
-  },
-  profileMeta: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 6,
-  },
-  profileHint: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 10,
-  },
-  profileInput: {
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#374151",
-    backgroundColor: "rgba(15,23,42,0.9)",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    color: "#E5E7EB",
-    fontSize: 13,
-    marginBottom: 8,
-  },
-  profileActionButtons: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 8,
-    marginTop: 12,
-  },
-  profileCancelBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#4B5563",
-    backgroundColor: "transparent",
-  },
-  profileCancelText: {
-    fontSize: 12,
-    color: "#9CA3AF",
-  },
-  profileSaveBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "#4F46E5",
-  },
-  profileSaveText: {
-    fontSize: 12,
-    color: "#F9FAFB",
-    fontWeight: "600",
-  },
-  profileEditBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#4F46E5",
-    backgroundColor: "rgba(79, 70, 229, 0.1)",
-    gap: 6,
-  },
-  profileEditText: {
-    fontSize: 12,
-    color: "#4F46E5",
-    fontWeight: "600",
-  },
-  profileLogoutBtn: {
-    marginTop: 16,
-    flexDirection: "row",
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#EF4444",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  profileLogoutText: {
-    fontSize: 14,
-    color: "#EF4444",
-    fontWeight: "600",
-  },
-  profileHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
-  },
-  profileAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#4F46E5",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  profileAvatarText: {
+  signalValue: {
+    marginTop: 8,
     fontSize: 20,
+    fontWeight: "900",
+    color: "#F8FAFC",
+  },
+  signalMeta: { marginTop: 6, fontSize: 12, color: "#94A3B8" },
+  statsSummaryRow: {
+    marginTop: 16,
+    flexDirection: "row",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  statsSummaryCard: {
+    flex: 1,
+    minWidth: 180,
+    borderRadius: 18,
+    padding: 16,
+    backgroundColor: "rgba(15, 23, 42, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.1)",
+  },
+  statsSummaryLabel: {
+    fontSize: 12,
+    color: "#94A3B8",
     fontWeight: "700",
-    color: "#F9FAFB",
+    textTransform: "uppercase",
+    letterSpacing: 0.9,
   },
-  profileDivider: {
-    height: 1,
-    backgroundColor: "#1F2937",
-    marginVertical: 10,
+  statsSummaryValue: {
+    marginTop: 8,
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#F8FAFC",
   },
-  profileButtonsRow: {
+  graphShell: {
+    marginTop: 18,
+    minHeight: 340,
+    borderRadius: 24,
+    padding: 18,
+    backgroundColor: "rgba(2, 6, 23, 0.58)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.06)",
     flexDirection: "row",
-    gap: 8,
-    marginTop: 12,
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 12,
   },
-  profileSecurityBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#F59E0B",
-    backgroundColor: "rgba(245, 158, 11, 0.1)",
-    gap: 6,
+  graphScrollContent: {
+    paddingRight: 8,
   },
-  profileSecurityText: {
-    fontSize: 12,
-    color: "#F59E0B",
-    fontWeight: "600",
+  graphShellCompact: {
+    minWidth: 560,
   },
-  passwordErrorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#EF4444",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 12,
-    gap: 8,
+  graphColumn: { flex: 1, alignItems: "center", justifyContent: "flex-end" },
+  graphColumnCompact: {
+    minWidth: 88,
   },
-  passwordErrorText: {
-    fontSize: 12,
-    color: "#FCA5A5",
-    fontWeight: "500",
-    flex: 1,
-  },
-  passwordSuccessContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#10B981",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 12,
-    gap: 8,
-  },
-  passwordSuccessText: {
-    fontSize: 12,
-    color: "#A7F3D0",
-    fontWeight: "500",
-    flex: 1,
-  },
-  passwordHint: {
-    fontSize: 11,
-    color: "#6B7280",
-    marginBottom: 12,
-    marginTop: -6,
-  },
-  profileSecuritySection: {
-    marginBottom: 12,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(245, 158, 11, 0.08)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#F59E0B",
-    alignItems: "center",
-  },
-  profileSecuritySectionTitle: {
+  graphValue: {
+    marginBottom: 10,
     fontSize: 13,
-    fontWeight: "600",
-    color: "#F59E0B",
-    marginBottom: 6,
-  },
-  profileSecuritySectionText: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    lineHeight: 16,
+    fontWeight: "700",
+    color: "#CFFAFE",
     textAlign: "center",
   },
-  bottomNav: {
+  graphTrack: {
+    width: "100%",
+    maxWidth: 62,
+    height: 220,
+    justifyContent: "flex-end",
+    borderRadius: 20,
+    backgroundColor: "rgba(15, 23, 42, 0.95)",
+    padding: 8,
+  },
+  graphBar: { width: "100%", borderRadius: 18 },
+  graphLabel: {
+    marginTop: 12,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "800",
+    color: "#F8FAFC",
+    textAlign: "center",
+  },
+  emptyGraphText: { marginTop: 18, color: "#94A3B8", fontSize: 14, lineHeight: 22 },
+  profileCard: {
+    marginTop: 16,
+    borderRadius: 20,
+    padding: 18,
+    backgroundColor: "rgba(15, 23, 42, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.1)",
+  },
+  profileTopRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  profileAvatarWrap: { position: "relative" },
+  avatarCamera: {
     position: "absolute",
-    left: Platform.OS === "web" ? "50%" : 16,
-    right: Platform.OS === "web" ? "auto" : 16,
-    bottom: 40,
+    right: -4,
+    bottom: -4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2563EB",
+    borderWidth: 2,
+    borderColor: "#020617",
+  },
+  profileCopy: { flex: 1 },
+  profileName: { fontSize: 20, fontWeight: "900", color: "#F8FAFC" },
+  profileEmail: { marginTop: 4, fontSize: 14, color: "#CBD5E1" },
+  profileMeta: { marginTop: 8, fontSize: 12, color: "#67E8F9" },
+  profileActionRow: { marginTop: 16, flexDirection: "row", gap: 10, flexWrap: "wrap" },
+  profileInput: {
+    marginTop: 12,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: "rgba(8, 15, 30, 0.96)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+    color: "#F8FAFC",
+  },
+  passwordCard: {
+    marginTop: 14,
+    borderRadius: 20,
+    padding: 18,
+    backgroundColor: "rgba(15, 23, 42, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.1)",
+  },
+  passwordSuccess: { color: "#86EFAC", fontWeight: "700" },
+  passwordError: { color: "#FCA5A5", fontWeight: "700" },
+  primaryButton: {
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    backgroundColor: "#7DD3FC",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryButtonText: { color: "#020617", fontWeight: "900" },
+  secondaryButton: {
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: "rgba(30, 41, 59, 0.92)",
+  },
+  secondaryButtonText: { color: "#E2E8F0", fontWeight: "800" },
+  legalRow: {
+    marginTop: 14,
+    borderRadius: 18,
+    padding: 16,
+    backgroundColor: "rgba(15, 23, 42, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.1)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: "rgba(15,23,42,0.9)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F2937",
-    ...Platform.select({
-      web: {
-        width: 400,
-        marginLeft: -200,
-      } as any,
-    }),
+    gap: 12,
   },
-  bottomNavItem: {
+  legalTitle: { fontSize: 16, fontWeight: "800", color: "#F8FAFC" },
+  legalSubtitle: {
+    marginTop: 4,
+    maxWidth: 260,
+    color: "#94A3B8",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  logoutButton: {
+    marginTop: 14,
+    marginBottom: 10,
+    borderRadius: 20,
+    paddingVertical: 14,
+    backgroundColor: "rgba(127, 29, 29, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(248, 113, 113, 0.16)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  logoutButtonText: { color: "#FCA5A5", fontWeight: "800" },
+  bottomNav: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 16,
+    borderRadius: 22,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.1)",
+    overflow: "hidden",
+  },
+  bottomNavCompact: {
+    left: 12,
+    right: 12,
+    bottom: 24,
+  },
+  navItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 2,
-    ...Platform.select({
-      web: { cursor: "pointer" } as any,
-    }),
+    paddingVertical: 9,
+    borderRadius: 16,
   },
-  bottomNavItemActive: {
-    transform: [{ translateY: -2 }],
+  navItemActive: { backgroundColor: "rgba(34, 211, 238, 0.12)" },
+  navLabel: { marginTop: 4, fontSize: 11, fontWeight: "700", color: "#64748B" },
+  navLabelActive: { color: "#E0F2FE" },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(2, 6, 23, 0.62)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
   },
-  bottomNavLabel: {
-    fontSize: 11,
-    color: "#9CA3AF",
+  modalCard: {
+    width: "100%",
+    maxWidth: 520,
+    maxHeight: "88%",
+    borderRadius: 24,
+    paddingTop: 18,
+    paddingHorizontal: 18,
+    paddingBottom: 18,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
   },
-  bottomNavLabelActive: {
-    color: "#F9FAFB",
-    fontWeight: "600",
+  modalCardCompact: {
+    maxWidth: "100%",
+    maxHeight: "92%",
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderRadius: 20,
   },
-  userInfo: {
-    padding: 16,
-    backgroundColor: "#020617",
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1F2937",
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
   },
-  welcomeText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#E5E7EB",
+  modalTitle: { fontSize: 20, fontWeight: "900", color: "#F8FAFC" },
+  modalCloseButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(30, 41, 59, 0.92)",
   },
-  emailText: {
+  modalBodyScroll: {
+    marginTop: 14,
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  modalBodyContent: {
+    paddingBottom: 12,
+  },
+  modalNotes: { minHeight: 96, textAlignVertical: "top" },
+  editReceiptPreview: {
+    marginTop: 14,
+    position: "relative",
+    borderRadius: 22,
+    overflow: "hidden",
+  },
+  editReceiptImage: { width: "100%", height: 190, borderRadius: 22 },
+  editReceiptRemove: {
+    position: "absolute",
+    right: 12,
+    top: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(2, 6, 23, 0.72)",
+  },
+  modalFooter: {
+    marginTop: 12,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(148, 163, 184, 0.1)",
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  modalActionsStack: {
+    flexDirection: "column-reverse",
+    alignItems: "stretch",
+  },
+  infoCard: {
+    width: "100%",
+    maxWidth: 460,
+    borderRadius: 24,
+    padding: 22,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+  },
+  infoBody: {
+    marginTop: 14,
     fontSize: 14,
-    color: "#9CA3AF",
-  },
-  loginTimeText: {
-    fontSize: 12,
-    color: "#6B7280",
+    lineHeight: 24,
+    color: "#CBD5E1",
+    marginBottom: 18,
   },
 });

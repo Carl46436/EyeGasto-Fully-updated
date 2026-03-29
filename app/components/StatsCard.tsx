@@ -1,6 +1,7 @@
 import React from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 
 interface Props {
   title: string;
@@ -9,16 +10,31 @@ interface Props {
   period: "month" | "total";
 }
 
+const formatAmount = (amount: number) =>
+  new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    maximumFractionDigits: 2,
+  }).format(amount);
+
 export default function StatsCard({ title, amount, type, period }: Props) {
   const isExpense = type === "expense";
-  const amountColor = isExpense ? "#FF6B6B" : "#4CAF50";
+  const accent = isExpense ? ["#7DD3FC", "#38BDF8"] : ["#86EFAC", "#34D399"];
 
   return (
-    <BlurView intensity={30} tint="dark" style={styles.card}>
-      <View style={[styles.inner, { borderColor: amountColor }]}>
+    <BlurView intensity={26} tint="dark" style={styles.card}>
+      <View style={styles.inner}>
         <Text style={styles.title}>{title}</Text>
-        <Text style={[styles.amount, { color: amountColor }]}>
-          {isExpense ? "-" : "+"} ₱{amount.toFixed(2)}
+        <LinearGradient
+          colors={accent as [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.amountPill}
+        >
+          <Text style={styles.amount}>{formatAmount(amount)}</Text>
+        </LinearGradient>
+        <Text style={styles.metaLabel}>
+          {period === "total" ? "All recorded expenses" : "Live monthly total"}
         </Text>
       </View>
     </BlurView>
@@ -27,39 +43,51 @@ export default function StatsCard({ title, amount, type, period }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: "hidden",
     marginBottom: 12,
-    width: "100%", // Default to full width for mobile
+    width: "100%",
     ...Platform.select({
       web: {
-        width: "30%",
-        minWidth: 200,
-        cursor: "pointer",
-      } as any,
+        width: "31%",
+        minWidth: 196,
+      } as object,
     }),
   },
   inner: {
-    backgroundColor: "rgba(15,23,42,0.7)",
-    padding: 20, // Increased padding
-    borderRadius: 16,
-    borderWidth: 1, // Visible border
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    backgroundColor: "rgba(8, 15, 30, 0.82)",
+    padding: 18,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.1)",
+    shadowColor: "#020617",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
     elevation: 4,
   },
   title: {
-    fontSize: 14, // Slightly larger
-    color: "#9CA3AF",
-    fontWeight: "600",
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "700",
     marginBottom: 10,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 1.1,
+  },
+  amountPill: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
   },
   amount: {
-    fontSize: 26, // Much larger for better visibility
-    fontWeight: "800",
+    fontSize: 21,
+    fontWeight: "900",
+    color: "#020617",
+  },
+  metaLabel: {
+    fontSize: 12,
+    color: "#475569",
+    fontWeight: "600",
   },
 });

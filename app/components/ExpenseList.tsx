@@ -63,6 +63,9 @@ export default function ExpenseList({ expenses, onDelete, onEdit }: Props) {
               description={item.description}
               amount={item.amount}
               date={item.date}
+              category={item.category}
+              notes={item.notes}
+              imageUrl={item.imageUrl}
               onDelete={onDelete ? () => onDelete(item.id) : undefined}
               onPress={onEdit ? () => onEdit(item) : undefined}
             />
@@ -95,11 +98,11 @@ const styles = StyleSheet.create({
     borderColor: "rgba(79, 70, 229, 0.3)",
   },
   sectionHeaderText: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: "700",
-    color: "#6366F1",
+    color: "#7DD3FC",
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 1.3,
   },
   sectionLine: {
     flex: 1,
