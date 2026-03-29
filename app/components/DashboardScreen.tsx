@@ -1594,7 +1594,7 @@ export default function DashboardScreen({
                       })}
                     </View>
 
-                    <View style={styles.graphPlotArea}>
+                      <View style={styles.graphPlotArea}>
                       {[1, 0.75, 0.5, 0.25, 0].map((step, lineIndex) => (
                         <View
                           key={`line-${lineIndex}`}
@@ -1602,15 +1602,21 @@ export default function DashboardScreen({
                             styles.graphGridLine,
                             {
                               top: `${(1 - step) * 100}%`,
-                              borderColor:
-                                lineIndex === 1
-                                  ? "rgba(148, 163, 184, 0.45)"
-                                  : theme.cardBorder,
-                              borderStyle: lineIndex === 1 ? "dashed" : "solid",
+                              borderColor: theme.cardBorder,
                             },
                           ]}
                         />
                       ))}
+
+                      <View
+                        style={[
+                          styles.graphBenchmarkLine,
+                          {
+                            top: `${(1 - 0.5) * 100}%`,
+                            borderColor: "rgba(226, 232, 240, 0.55)",
+                          },
+                        ]}
+                      />
 
                       <View style={styles.graphColumnsRow}>
                         {graphEntries.map(([dayLabel, total], index) => {
@@ -2852,6 +2858,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     borderTopWidth: 1,
+  },
+  graphBenchmarkLine: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    borderTopWidth: 2,
+    borderStyle: "dashed",
+    zIndex: 1,
   },
   graphColumnsRow: {
     flex: 1,
