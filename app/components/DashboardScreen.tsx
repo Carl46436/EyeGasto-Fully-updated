@@ -4,6 +4,7 @@ import {
   Alert,
   Animated,
   DimensionValue,
+  Easing,
   Modal,
   Platform,
   SafeAreaView,
@@ -104,6 +105,7 @@ export default function DashboardScreen({
   const isVeryCompact = width < 420;
   const useSidebarNavigation = Platform.OS === "web" && !isCompact;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const contentAnim = useRef(new Animated.Value(1)).current;
 
   const [activeTab, setActiveTab] = useState<
     "overview" | "stats" | "gallery" | "profile"
@@ -144,9 +146,20 @@ export default function DashboardScreen({
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 650,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
   }, [fadeAnim]);
+
+  useEffect(() => {
+    contentAnim.setValue(0);
+    Animated.timing(contentAnim, {
+      toValue: 1,
+      duration: 280,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab, contentAnim]);
 
   useEffect(() => {
     setEditName(user.name);
@@ -1179,7 +1192,25 @@ export default function DashboardScreen({
           ]}
           showsVerticalScrollIndicator={false}
         >
-          <Animated.View style={{ opacity: fadeAnim }}>
+          <Animated.View
+            style={{
+              opacity: Animated.multiply(fadeAnim, contentAnim),
+              transform: [
+                {
+                  translateY: contentAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [14, 0],
+                  }),
+                },
+                {
+                  scale: contentAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.985, 1],
+                  }),
+                },
+              ],
+            }}
+          >
           {activeTab === "overview" ? (
             <>
               <LinearGradient
