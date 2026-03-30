@@ -105,6 +105,14 @@ const APP_VERSION =
   Constants.manifest2?.extra?.expoClient?.version ??
   "1.0.0";
 
+const QUICK_ADDS = [
+  { label: "Coffee", amount: 80, category: "Food" },
+  { label: "Lunch", amount: 150, category: "Food" },
+  { label: "Transport", amount: 120, category: "Transport" },
+  { label: "Groceries", amount: 650, category: "Groceries" },
+  { label: "Bills", amount: 1200, category: "Bills" },
+];
+
 export default function DashboardScreen({
   user,
   expenses,
@@ -128,7 +136,7 @@ export default function DashboardScreen({
     "overview" | "stats" | "gallery" | "profile"
   >("overview");
   const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
-  const [showAddForm, setShowAddForm] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | "All">(
     "All",
   );
@@ -541,13 +549,16 @@ export default function DashboardScreen({
     [themeMode],
   );
 
-  const quickAdds = [
-    { label: "Coffee", amount: 80, category: "Food" },
-    { label: "Lunch", amount: 150, category: "Food" },
-    { label: "Transport", amount: 120, category: "Transport" },
-    { label: "Groceries", amount: 650, category: "Groceries" },
-    { label: "Bills", amount: 1200, category: "Bills" },
-  ];
+  const addExpenseCategories = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...QUICK_ADDS.map((item) => item.category),
+          ...Object.keys(categoryBreakdown),
+        ]),
+      ),
+    [categoryBreakdown],
+  );
   const navigationItems = [
     { key: "overview", icon: "grid-outline", label: "Overview" },
     { key: "stats", icon: "stats-chart-outline", label: "Stats" },
@@ -628,6 +639,19 @@ export default function DashboardScreen({
   );
 
   const confirmClearAll = () => {
+    if (Platform.OS === "web") {
+      const shouldClear =
+        typeof window !== "undefined" &&
+        window.confirm(
+          "Clear all expenses? This removes every saved expense entry from your account.",
+        );
+
+      if (shouldClear) {
+        onClearAll();
+      }
+      return;
+    }
+
     Alert.alert(
       "Clear all expenses",
       "This removes every saved expense entry from your account.",
@@ -1252,9 +1276,21 @@ export default function DashboardScreen({
         </TouchableOpacity>
 
         {!isCompact ? (
-          <View style={styles.headerBadge}>
+          <View
+            style={[
+              styles.headerBadge,
+              themeMode === "light" && styles.headerBadgeLight,
+            ]}
+          >
             <Ionicons name="sparkles-outline" size={14} color="#67E8F9" />
-            <Text style={styles.headerBadgeText}>Live Dashboard</Text>
+            <Text
+              style={[
+                styles.headerBadgeText,
+                themeMode === "light" && styles.headerBadgeTextLight,
+              ]}
+            >
+              Live Dashboard
+            </Text>
           </View>
         ) : null}
       </View>
@@ -1278,8 +1314,32 @@ export default function DashboardScreen({
             ]}
           >
             <View style={styles.sideNavIntro}>
-              <View style={styles.sideNavBrand}>
-                <View style={styles.sideNavBrandBadge}>
+              <View
+                style={[
+                  styles.sideNavBrand,
+                  {
+                    borderColor:
+                      themeMode === "light"
+                        ? "rgba(2, 132, 199, 0.14)"
+                        : "rgba(125, 211, 252, 0.16)",
+                    backgroundColor:
+                      themeMode === "light"
+                        ? "rgba(248, 250, 252, 0.92)"
+                        : "rgba(8, 15, 30, 0.42)",
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.sideNavBrandBadge,
+                    {
+                      backgroundColor:
+                        themeMode === "light"
+                          ? "rgba(2, 132, 199, 0.08)"
+                          : "rgba(103, 232, 249, 0.16)",
+                    },
+                  ]}
+                >
                   <LinearGradient
                     colors={["#67E8F9", "#38BDF8", "#2563EB"]}
                     start={{ x: 0, y: 0 }}
@@ -1446,6 +1506,10 @@ export default function DashboardScreen({
                             { color: theme.faint },
                             dateRange === option.key &&
                               styles.filterChipTextActive,
+                            dateRange === option.key && {
+                              color:
+                                themeMode === "light" ? "#0F172A" : "#CFFAFE",
+                            },
                           ]}
                         >
                           {option.label}
@@ -1483,38 +1547,39 @@ export default function DashboardScreen({
                         Save the amount, category, notes, and optional receipt.
                       </Text>
                     </View>
-                    <TouchableOpacity
-                      style={[
-                        styles.iconToggle,
-                        {
-                          backgroundColor: showAddForm
-                            ? "rgba(34, 211, 238, 0.18)"
-                            : "rgba(30, 41, 59, 0.92)",
-                          borderColor: showAddForm
-                            ? "rgba(34, 211, 238, 0.42)"
-                            : theme.cardBorder,
-                        },
-                      ]}
-                      onPress={() => setShowAddForm((value) => !value)}
-                    >
-                      <Ionicons
-                        name={showAddForm ? "remove" : "add"}
-                        size={20}
-                        color={showAddForm ? "#67E8F9" : "#E2E8F0"}
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  {showAddForm ? (
-                    <AddExpenseForm onAdd={onAddExpense} mode={themeMode} />
-                  ) : null}
+                      {useSidebarNavigation ? (
+                        <TouchableOpacity
+                          style={styles.addExpenseHeaderButton}
+                          onPress={() => setShowAddForm(true)}
+                          activeOpacity={0.92}
+                        >
+                          <LinearGradient
+                            colors={
+                              themeMode === "light"
+                                ? ["#E0F2FE", "#BAE6FD", "#7DD3FC"]
+                                : ["#67E8F9", "#38BDF8", "#2563EB"]
+                            }
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.addExpenseHeaderButtonFill}
+                          >
+                            <View style={styles.addExpenseHeaderButtonIconWrap}>
+                              <Ionicons name="add" size={16} color="#0369A1" />
+                            </View>
+                            <Text style={styles.addExpenseHeaderButtonText}>
+                              Add expense
+                            </Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
 
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.quickAddRow}
                   >
-                    {quickAdds.map((item) => (
+                    {QUICK_ADDS.map((item) => (
                       <TouchableOpacity
                         key={`${item.label}-${item.amount}`}
                         style={[
@@ -1866,10 +1931,20 @@ export default function DashboardScreen({
                         </Text>
                       </View>
                       <TouchableOpacity
-                        style={styles.clearButton}
+                        style={[
+                          styles.clearButton,
+                          themeMode === "light" && styles.clearButtonLight,
+                        ]}
                         onPress={confirmClearAll}
                       >
-                        <Text style={styles.clearButtonText}>Clear all</Text>
+                        <Text
+                          style={[
+                            styles.clearButtonText,
+                            themeMode === "light" && styles.clearButtonTextLight,
+                          ]}
+                        >
+                          Clear all
+                        </Text>
                       </TouchableOpacity>
                     </View>
 
@@ -1889,6 +1964,7 @@ export default function DashboardScreen({
                     />
 
                     <ScrollView
+                      style={styles.categoryScroller}
                       horizontal
                       showsHorizontalScrollIndicator={false}
                       contentContainerStyle={styles.categoryRow}
@@ -1918,6 +1994,10 @@ export default function DashboardScreen({
                               { color: theme.faint },
                               selectedCategory === category &&
                                 styles.categoryChipTextActive,
+                              selectedCategory === category && {
+                                color:
+                                  themeMode === "light" ? "#0369A1" : "#CFFAFE",
+                              },
                             ]}
                           >
                             {category}
@@ -3142,46 +3222,115 @@ export default function DashboardScreen({
       </View>
 
       {!useSidebarNavigation ? (
-        <BlurView
-          intensity={26}
-          tint={themeMode === "light" ? "light" : "dark"}
-          style={[
-            styles.bottomNav,
-            isCompact && styles.bottomNavCompact,
-            {
-              borderColor: theme.cardBorder,
-              backgroundColor: theme.cardBackground,
-            },
-          ]}
-        >
-          {navigationItems.map((item) => {
-            const active = activeTab === item.key;
-            return (
-              <TouchableOpacity
-                key={item.key}
-                style={[styles.navItem, active && styles.navItemActive]}
-                onPress={() => setActiveTab(item.key)}
-              >
-                <Ionicons
-                  name={item.icon}
-                  size={20}
-                  color={active ? theme.accent : theme.faint}
-                />
-                <Text
-                  style={[
-                    styles.navLabel,
-                    { color: theme.faint },
-                    active && styles.navLabelActive,
-                    active && { color: theme.title },
-                  ]}
+        <>
+          <TouchableOpacity
+            style={styles.floatingAddButton}
+            onPress={() => setShowAddForm(true)}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={["#22D3EE", "#3B82F6", "#8B5CF6"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.floatingAddButtonFill}
+            >
+              <Ionicons name="add" size={18} color="#020617" />
+              <Text style={styles.floatingAddButtonText}>Add expense</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <BlurView
+            intensity={26}
+            tint={themeMode === "light" ? "light" : "dark"}
+            style={[
+              styles.bottomNav,
+              isCompact && styles.bottomNavCompact,
+              {
+                borderColor: theme.cardBorder,
+                backgroundColor: theme.cardBackground,
+              },
+            ]}
+          >
+            {navigationItems.map((item) => {
+              const active = activeTab === item.key;
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[styles.navItem, active && styles.navItemActive]}
+                  onPress={() => setActiveTab(item.key)}
                 >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </BlurView>
+                  <Ionicons
+                    name={item.icon}
+                    size={20}
+                    color={active ? theme.accent : theme.faint}
+                  />
+                  <Text
+                    style={[
+                      styles.navLabel,
+                      { color: theme.faint },
+                      active && styles.navLabelActive,
+                      active && { color: theme.title },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </BlurView>
+        </>
       ) : null}
+
+      <Modal
+        animationType="slide"
+        transparent
+        visible={showAddForm}
+        onRequestClose={() => setShowAddForm(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <BlurView
+            intensity={36}
+            tint={themeMode === "light" ? "light" : "dark"}
+            style={[
+              styles.modalCard,
+              isCompact && styles.modalCardCompact,
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.cardBorder,
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.title }]}>
+                Add Expense
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.modalCloseButton,
+                  { backgroundColor: theme.mutedSurface },
+                ]}
+                onPress={() => setShowAddForm(false)}
+              >
+                <Ionicons name="close" size={18} color={theme.title} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.modalBodyScroll}
+              contentContainerStyle={styles.modalBodyContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <AddExpenseForm
+                onAdd={onAddExpense}
+                mode={themeMode}
+                categories={addExpenseCategories}
+                onSuccess={() => setShowAddForm(false)}
+              />
+            </ScrollView>
+          </BlurView>
+        </View>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -3693,6 +3842,13 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.9,
   },
+  headerBadgeLight: {
+    borderColor: "rgba(2, 132, 199, 0.14)",
+    backgroundColor: "rgba(240, 249, 255, 0.98)",
+  },
+  headerBadgeTextLight: {
+    color: "#0369A1",
+  },
   themeToggle: {
     borderRadius: 999,
     paddingHorizontal: 12,
@@ -3891,6 +4047,36 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 6,
   },
+  addExpenseHeaderButton: {
+    borderRadius: 999,
+    overflow: "hidden",
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  addExpenseHeaderButtonFill: {
+    minHeight: 56,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  addExpenseHeaderButtonIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.68)",
+  },
+  addExpenseHeaderButtonText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#082F49",
+  },
   quickAddRow: { paddingTop: 12, gap: 8 },
   recurringPlansWrap: {
     marginTop: 18,
@@ -4051,7 +4237,13 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     backgroundColor: "rgba(127, 29, 29, 0.18)",
   },
+  clearButtonLight: {
+    backgroundColor: "rgba(254, 226, 226, 0.96)",
+    borderWidth: 1,
+    borderColor: "rgba(248, 113, 113, 0.28)",
+  },
   clearButtonText: { color: "#FCA5A5", fontWeight: "700" },
+  clearButtonTextLight: { color: "#DC2626" },
   searchInput: {
     marginTop: 16,
     borderRadius: 16,
@@ -4062,8 +4254,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.12)",
   },
-  categoryRow: { paddingTop: 12, paddingBottom: 4, gap: 8 },
+  categoryScroller: {
+    flexGrow: 0,
+    marginTop: 2,
+  },
+  categoryRow: {
+    paddingTop: 12,
+    paddingBottom: 4,
+    gap: 8,
+    alignItems: "center",
+  },
   categoryChip: {
+    alignSelf: "flex-start",
     borderRadius: 999,
     paddingHorizontal: 13,
     paddingVertical: 8,
@@ -4478,6 +4680,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.1)",
     overflow: "hidden",
+  },
+  floatingAddButton: {
+    position: "absolute",
+    right: 16,
+    bottom: 112,
+    borderRadius: 999,
+    overflow: "hidden",
+    shadowColor: "#22D3EE",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 10,
+    zIndex: 3,
+  },
+  floatingAddButtonFill: {
+    minHeight: 52,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  floatingAddButtonText: {
+    color: "#020617",
+    fontSize: 14,
+    fontWeight: "900",
   },
   bottomNavCompact: {
     left: 12,

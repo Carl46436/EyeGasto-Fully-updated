@@ -3,6 +3,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -28,9 +29,29 @@ interface Props {
     },
   ) => boolean | Promise<boolean>;
   mode?: "dark" | "light";
+  categories?: string[];
+  onSuccess?: () => void;
 }
 
-export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
+const DEFAULT_CATEGORIES = [
+  "Food",
+  "Transport",
+  "Groceries",
+  "Bills",
+  "Shopping",
+  "Entertainment",
+  "Health",
+  "Education",
+  "Utilities",
+  "Other",
+];
+
+export default function AddExpenseForm({
+  onAdd,
+  mode = "dark",
+  categories = [],
+  onSuccess,
+}: Props) {
   const { width } = useWindowDimensions();
   const isCompact = width < 420;
   const isLight = mode === "light";
@@ -41,6 +62,15 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
   const [imageUri, setImageUri] = useState<string | undefined>();
   const [isRecurringMonthly, setIsRecurringMonthly] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCategoryMenu, setShowCategoryMenu] = useState(false);
+
+  const categoryOptions = Array.from(
+    new Set(
+      [...DEFAULT_CATEGORIES, ...categories]
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
 
   const handlePickImage = async () => {
     try {
@@ -106,6 +136,8 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
       setNotes("");
       setImageUri(undefined);
       setIsRecurringMonthly(false);
+      setShowCategoryMenu(false);
+      onSuccess?.();
     } finally {
       setIsSubmitting(false);
     }
@@ -160,13 +192,74 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
             <Text style={[styles.label, isLight && styles.labelLight]}>
               Category
             </Text>
-            <TextInput
-              style={[styles.input, isLight && styles.inputLight]}
-              placeholder="Food, Bills, Transport"
-              placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
-              value={category}
-              onChangeText={setCategory}
-            />
+            <TouchableOpacity
+              activeOpacity={0.86}
+              style={[styles.dropdownField, isLight && styles.inputLight]}
+              onPress={() => setShowCategoryMenu((value) => !value)}
+            >
+              <Text
+                style={[
+                  styles.dropdownValue,
+                  !category && styles.dropdownPlaceholder,
+                  isLight && !category && styles.dropdownPlaceholderLight,
+                  isLight && category && styles.dropdownValueLight,
+                ]}
+              >
+                {category || "Select a category"}
+              </Text>
+              <Ionicons
+                name={showCategoryMenu ? "chevron-up" : "chevron-down"}
+                size={18}
+                color={isLight ? "#64748B" : "#94A3B8"}
+              />
+            </TouchableOpacity>
+            {showCategoryMenu ? (
+              <View
+                style={[
+                  styles.dropdownMenu,
+                  isLight && styles.dropdownMenuLight,
+                ]}
+              >
+                <ScrollView
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
+                  style={styles.dropdownScroll}
+                >
+                  {categoryOptions.map((option) => {
+                    const selected = category === option;
+
+                    return (
+                      <TouchableOpacity
+                        key={option}
+                        activeOpacity={0.82}
+                        style={[
+                          styles.dropdownOption,
+                          selected && styles.dropdownOptionActive,
+                        ]}
+                        onPress={() => {
+                          setCategory(option);
+                          setShowCategoryMenu(false);
+                        }}
+                      >
+                      <Text
+                        style={[
+                          styles.dropdownOptionText,
+                          isLight && styles.dropdownOptionTextLight,
+                          selected && styles.dropdownOptionTextActive,
+                          isLight && selected && styles.dropdownOptionTextActiveLight,
+                        ]}
+                      >
+                        {option}
+                        </Text>
+                        {selected ? (
+                          <Ionicons name="checkmark" size={16} color="#22D3EE" />
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -382,6 +475,75 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 23, 42, 0.9)",
     color: "#F8FAFC",
     fontSize: 15,
+  },
+  dropdownField: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+    backgroundColor: "rgba(15, 23, 42, 0.9)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  dropdownValue: {
+    flex: 1,
+    color: "#F8FAFC",
+    fontSize: 15,
+  },
+  dropdownValueLight: {
+    color: "#0F172A",
+  },
+  dropdownPlaceholder: {
+    color: "#64748B",
+  },
+  dropdownPlaceholderLight: {
+    color: "#94A3B8",
+  },
+  dropdownMenu: {
+    marginTop: 10,
+    maxHeight: 220,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+    backgroundColor: "rgba(15, 23, 42, 0.96)",
+    overflow: "hidden",
+  },
+  dropdownScroll: {
+    maxHeight: 220,
+  },
+  dropdownMenuLight: {
+    borderColor: "rgba(148, 163, 184, 0.16)",
+    backgroundColor: "rgba(241, 245, 249, 0.98)",
+  },
+  dropdownOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(148, 163, 184, 0.08)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  dropdownOptionActive: {
+    backgroundColor: "rgba(34, 211, 238, 0.12)",
+  },
+  dropdownOptionText: {
+    color: "#E2E8F0",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  dropdownOptionTextLight: {
+    color: "#0F172A",
+  },
+  dropdownOptionTextActive: {
+    color: "#67E8F9",
+  },
+  dropdownOptionTextActiveLight: {
+    color: "#0369A1",
   },
   inputLight: {
     borderColor: "rgba(148, 163, 184, 0.16)",

@@ -56,8 +56,12 @@ export default function ExpenseItem({
               contentFit="cover"
             />
           ) : (
-            <View style={styles.receiptFallback}>
-              <Ionicons name="receipt-outline" size={18} color="#38BDF8" />
+            <View style={[styles.receiptFallback, isLight && styles.receiptFallbackLight]}>
+              <Ionicons
+                name="receipt-outline"
+                size={18}
+                color={isLight ? "#0284C7" : "#38BDF8"}
+              />
             </View>
           )}
 
@@ -130,10 +134,18 @@ export default function ExpenseItem({
           </TouchableOpacity>
           <TouchableOpacity
             onPress={onDelete}
-            style={[styles.deleteButton, isPending && styles.disabledAction]}
+            style={[
+              styles.deleteButton,
+              isLight && styles.deleteButtonLight,
+              isPending && styles.disabledAction,
+            ]}
             disabled={isPending}
           >
-            <Ionicons name="trash-outline" size={18} color="#FCA5A5" />
+            <Ionicons
+              name="trash-outline"
+              size={18}
+              color={isLight ? "#DC2626" : "#FCA5A5"}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -181,6 +193,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 23, 42, 0.95)",
     borderWidth: 1,
     borderColor: "rgba(56, 189, 248, 0.16)",
+  },
+  receiptFallbackLight: {
+    backgroundColor: "rgba(240, 249, 255, 0.98)",
+    borderColor: "rgba(2, 132, 199, 0.14)",
   },
   details: {
     flex: 1,
@@ -290,6 +306,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(127, 29, 29, 0.24)",
+  },
+  deleteButtonLight: {
+    backgroundColor: "rgba(254, 226, 226, 0.96)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.2)",
   },
   disabledAction: {
     opacity: 0.55,
