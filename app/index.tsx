@@ -12,6 +12,10 @@ import expenseService from "./services/expenseService";
 import { Expense, User } from "./types";
 
 type Screen = "welcome" | "login" | "register" | "dashboard";
+type AlertState = {
+  message: string;
+  type: "error" | "warning" | "success";
+};
 
 export default function Index() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
@@ -19,7 +23,14 @@ export default function Index() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isExpensesLoading, setIsExpensesLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [alertState, setAlertState] = useState<AlertState | null>(null);
+
+  const showAlert = (
+    message: string,
+    type: AlertState["type"] = "error",
+  ) => {
+    setAlertState({ message, type });
+  };
 
   // Check auth status on mount
   useEffect(() => {
@@ -40,7 +51,7 @@ export default function Index() {
           setCurrentScreen("welcome");
         }
       } catch (err: any) {
-        setError(err.message || "Failed to initialize app");
+        showAlert(err.message || "Failed to initialize app");
         setCurrentScreen("welcome");
       } finally {
         setIsExpensesLoading(false);
@@ -57,7 +68,7 @@ export default function Index() {
       const result = await authService.login(email, password);
 
       if (!result.success) {
-        setError(result.error || "Gmail needs to be registered first");
+        showAlert(result.error || "Gmail needs to be registered first");
         return;
       }
 
@@ -68,7 +79,7 @@ export default function Index() {
       const userExpenses = await expenseService.getExpenses();
       setExpenses(userExpenses);
     } catch (err: any) {
-      setError(err.message || "Login error");
+      showAlert(err.message || "Login error");
     } finally {
       setIsExpensesLoading(false);
       setIsLoading(false);
@@ -85,19 +96,20 @@ export default function Index() {
       const result = await authService.register(email, password, name);
 
       if (!result.success) {
-        setError(result.error || "Registration failed");
+        showAlert(result.error || "Registration failed");
         return;
       }
 
-      setError(
+      showAlert(
         "Registration successful! Please check your email for verification.",
+        "success",
       );
       setTimeout(() => {
-        setError(null);
+        setAlertState(null);
         setCurrentScreen("login");
       }, 2000);
     } catch (err: any) {
-      setError(err.message || "Registration error");
+      showAlert(err.message || "Registration error");
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +163,7 @@ export default function Index() {
 
       if (!result.success) {
         setExpenses((prev) => prev.filter((expense) => expense.id !== tempId));
-        setError(result.error || "Failed to add expense");
+        showAlert(result.error || "Failed to add expense");
         return false;
       }
 
@@ -162,10 +174,11 @@ export default function Index() {
           ),
         );
       }
+      showAlert("Expense added successfully.", "success");
       return true;
     } catch (err: any) {
       setExpenses((prev) => prev.filter((expense) => expense.id !== tempId));
-      setError(err.message || "Error adding expense");
+      showAlert(err.message || "Error adding expense");
       return false;
     }
   };
@@ -190,16 +203,18 @@ export default function Index() {
           restored.splice(removedIndex, 0, removedExpense);
           return restored;
         });
-        setError(result.error || "Failed to delete expense");
+        showAlert(result.error || "Failed to delete expense");
         return;
       }
+
+      showAlert("Expense deleted successfully.", "success");
     } catch (err: any) {
       setExpenses((prev) => {
         const restored = [...prev];
         restored.splice(removedIndex, 0, removedExpense);
         return restored;
       });
-      setError(err.message || "Error deleting expense");
+      showAlert(err.message || "Error deleting expense");
     }
   };
 
@@ -207,12 +222,13 @@ export default function Index() {
     try {
       const success = await expenseService.clearAllExpenses();
       if (!success) {
-        setError("Failed to clear expenses");
+        showAlert("Failed to clear expenses");
         return;
       }
       setExpenses([]);
+      showAlert("All expenses cleared.", "success");
     } catch (err: any) {
-      setError(err.message || "Error clearing expenses");
+      showAlert(err.message || "Error clearing expenses");
     }
   };
 
@@ -249,7 +265,7 @@ export default function Index() {
             expense.id === id ? previousExpense : expense,
           ),
         );
-        setError(result.error || "Failed to update expense");
+        showAlert(result.error || "Failed to update expense");
         return false;
       }
       setExpenses((prev) =>
@@ -269,12 +285,13 @@ export default function Index() {
           };
         }),
       );
+      showAlert("Expense edited successfully.", "success");
       return true;
     } catch (err: any) {
       setExpenses((prev) =>
         prev.map((expense) => (expense.id === id ? previousExpense : expense)),
       );
-      setError(err.message || "Error updating expense");
+      showAlert(err.message || "Error updating expense");
       return false;
     }
   };
@@ -287,7 +304,7 @@ export default function Index() {
       setExpenses([]);
       setCurrentScreen("welcome");
     } catch (err: any) {
-      setError(err.message || "Logout error");
+      showAlert(err.message || "Logout error");
     } finally {
       setIsLoading(false);
     }
@@ -299,12 +316,12 @@ export default function Index() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      {error && (
+      {alertState && (
         <ErrorAlert
-          message={error}
-          type={error.includes("successful") ? "success" : "error"}
+          message={alertState.message}
+          type={alertState.type}
           duration={3000}
-          onDismiss={() => setError(null)}
+          onDismiss={() => setAlertState(null)}
         />
       )}
 

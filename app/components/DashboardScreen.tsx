@@ -569,6 +569,37 @@ export default function DashboardScreen({
     ]);
   };
 
+  const confirmDeleteExpense = (id: string) => {
+    const expense = expenses.find((entry) => entry.id === id);
+    const message = expense
+      ? `Delete "${expense.description}" from your expense list?`
+      : "Delete this expense from your expense list?";
+
+    if (Platform.OS === "web") {
+      const shouldDelete =
+        typeof window !== "undefined" && window.confirm(message);
+
+      if (shouldDelete) {
+        onDeleteExpense(id);
+      }
+      return;
+    }
+
+    Alert.alert("Delete expense", message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          await Haptics.notificationAsync(
+            Haptics.NotificationFeedbackType.Warning,
+          );
+          onDeleteExpense(id);
+        },
+      },
+    ]);
+  };
+
   const handleQuickAdd = async (
     description: string,
     amount: number,
@@ -1291,7 +1322,7 @@ export default function DashboardScreen({
                   ) : (
                     <ExpenseList
                       expenses={displayedExpenses}
-                      onDelete={onDeleteExpense}
+                      onDelete={confirmDeleteExpense}
                       onEdit={startEditingExpense}
                       mode={themeMode}
                     />
