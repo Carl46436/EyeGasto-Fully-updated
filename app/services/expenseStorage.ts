@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 import authService from "./authService";
 
 const BUCKET_NAME = "receipts";
+const SHARED_FOLDER = "all-receipts";
 
 class ExpenseStorageService {
   private base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -50,7 +51,7 @@ class ExpenseStorageService {
 
       const fileData = await this.getArrayBufferFromUri(uri);
       const extension = this.getFileExtension(uri, mimeType);
-      const path = `${currentUser.id}/${Date.now()}-${Math.random()
+      const path = `${SHARED_FOLDER}/${currentUser.id}-${Date.now()}-${Math.random()
         .toString(36)
         .slice(2)}.${extension}`;
 
