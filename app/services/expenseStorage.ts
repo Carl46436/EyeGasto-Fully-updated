@@ -87,6 +87,15 @@ class ExpenseStorageService {
       console.warn("Failed to remove receipt from storage", error);
     }
   }
+
+  getReceiptPublicUrl(path?: string | null): string | undefined {
+    if (!path) {
+      return undefined;
+    }
+
+    const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
+    return data.publicUrl || undefined;
+  }
 }
 
 export default new ExpenseStorageService();

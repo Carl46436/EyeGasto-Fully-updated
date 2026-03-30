@@ -4,6 +4,24 @@ import authService from "./authService";
 import expenseStorage from "./expenseStorage";
 
 class ExpenseService {
+  private mapExpenseRecord(record: any): Expense {
+    const resolvedImageUrl =
+      expenseStorage.getReceiptPublicUrl(record.receipt_path) ||
+      record.image_url ||
+      undefined;
+
+    return {
+      id: record.id,
+      description: record.description,
+      amount: record.amount,
+      date: new Date(record.date),
+      category: record.category ?? undefined,
+      notes: record.notes ?? undefined,
+      imageUrl: resolvedImageUrl,
+      receiptPath: record.receipt_path ?? undefined,
+    };
+  }
+
   async addExpense(
     description: string,
     amount: number,
@@ -62,18 +80,7 @@ class ExpenseService {
         };
       }
 
-      const expense: Expense = {
-        id: data.id,
-        description: data.description,
-        amount: data.amount,
-        date: new Date(data.date),
-        category: data.category ?? undefined,
-        notes: data.notes ?? undefined,
-        imageUrl: data.image_url ?? undefined,
-        receiptPath: data.receipt_path ?? undefined,
-      };
-
-      return { success: true, expense };
+      return { success: true, expense: this.mapExpenseRecord(data) };
     } catch (error: any) {
       return {
         success: false,
@@ -100,16 +107,7 @@ class ExpenseService {
         return [];
       }
 
-      return data.map((e: any) => ({
-        id: e.id,
-        description: e.description,
-        amount: e.amount,
-        date: new Date(e.date),
-        category: e.category ?? undefined,
-        notes: e.notes ?? undefined,
-        imageUrl: e.image_url ?? undefined,
-        receiptPath: e.receipt_path ?? undefined,
-      }));
+      return data.map((e: any) => this.mapExpenseRecord(e));
     } catch (error) {
       console.error("Error fetching expenses:", error);
       return [];
@@ -254,18 +252,7 @@ class ExpenseService {
             : existingExpense?.receipt_path,
       };
 
-      const expense: Expense = {
-        id: resolvedExpense.id,
-        description: resolvedExpense.description,
-        amount: resolvedExpense.amount,
-        date: new Date(resolvedExpense.date),
-        category: resolvedExpense.category ?? undefined,
-        notes: resolvedExpense.notes ?? undefined,
-        imageUrl: resolvedExpense.image_url ?? undefined,
-        receiptPath: resolvedExpense.receipt_path ?? undefined,
-      };
-
-      return { success: true, expense };
+      return { success: true, expense: this.mapExpenseRecord(resolvedExpense) };
     } catch (error: any) {
       return {
         success: false,
