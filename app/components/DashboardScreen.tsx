@@ -102,6 +102,7 @@ export default function DashboardScreen({
   const { width } = useWindowDimensions();
   const isCompact = width < 768;
   const isVeryCompact = width < 420;
+  const useSidebarNavigation = Platform.OS === "web" && !isCompact;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const [activeTab, setActiveTab] = useState<
@@ -516,6 +517,12 @@ export default function DashboardScreen({
     { label: "Groceries", amount: 650, category: "Groceries" },
     { label: "Bills", amount: 1200, category: "Bills" },
   ];
+  const navigationItems = [
+    { key: "overview", icon: "grid-outline", label: "Overview" },
+    { key: "stats", icon: "stats-chart-outline", label: "Stats" },
+    { key: "gallery", icon: "images-outline", label: "Gallery" },
+    { key: "profile", icon: "person-circle-outline", label: "Profile" },
+  ] as const;
 
   const renderAvatar = (size: number, fontSize: number) => {
     if (user.avatar) {
@@ -1105,12 +1112,74 @@ export default function DashboardScreen({
         ) : null}
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <Animated.View style={{ opacity: fadeAnim }}>
+      <View style={[styles.dashboardShell, useSidebarNavigation && styles.dashboardShellWeb]}>
+        {useSidebarNavigation ? (
+          <BlurView
+            intensity={28}
+            tint={themeMode === "light" ? "light" : "dark"}
+            style={[
+              styles.sideNav,
+              {
+                borderColor: theme.cardBorder,
+                backgroundColor: theme.cardBackground,
+              },
+            ]}
+          >
+            <View>
+              <Text style={[styles.sideNavTitle, { color: theme.title }]}>Workspace</Text>
+              <Text style={[styles.sideNavSubtitle, { color: theme.faint }]}>
+                Jump between dashboard sections.
+              </Text>
+            </View>
+
+            <View style={styles.sideNavItems}>
+              {navigationItems.map((item) => {
+                const active = activeTab === item.key;
+                return (
+                  <TouchableOpacity
+                    key={item.key}
+                    style={[
+                      styles.sideNavItem,
+                      {
+                        backgroundColor: active
+                          ? "rgba(34, 211, 238, 0.12)"
+                          : "transparent",
+                        borderColor: active
+                          ? "rgba(34, 211, 238, 0.22)"
+                          : "transparent",
+                      },
+                    ]}
+                    onPress={() => setActiveTab(item.key)}
+                  >
+                    <Ionicons
+                      name={item.icon}
+                      size={18}
+                      color={active ? theme.accent : theme.faint}
+                    />
+                    <Text
+                      style={[
+                        styles.sideNavLabel,
+                        { color: active ? theme.title : theme.faint },
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </BlurView>
+        ) : null}
+
+        <ScrollView
+          style={[styles.scroll, useSidebarNavigation && styles.scrollWeb]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            useSidebarNavigation && styles.scrollContentWeb,
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View style={{ opacity: fadeAnim }}>
           {activeTab === "overview" ? (
             <>
               <LinearGradient
@@ -2701,53 +2770,51 @@ export default function DashboardScreen({
               </TouchableOpacity>
             </>
           ) : null}
-        </Animated.View>
-      </ScrollView>
+          </Animated.View>
+        </ScrollView>
+      </View>
 
-      <BlurView
-        intensity={26}
-        tint={themeMode === "light" ? "light" : "dark"}
-        style={[
-          styles.bottomNav,
-          isCompact && styles.bottomNavCompact,
-          {
-            borderColor: theme.cardBorder,
-            backgroundColor: theme.cardBackground,
-          },
-        ]}
-      >
-        {[
-          { key: "overview", icon: "grid-outline", label: "Overview" },
-          { key: "stats", icon: "stats-chart-outline", label: "Stats" },
-          { key: "gallery", icon: "images-outline", label: "Gallery" },
-          { key: "profile", icon: "person-circle-outline", label: "Profile" },
-        ].map((item) => {
-          const active = activeTab === item.key;
-          return (
-            <TouchableOpacity
-              key={item.key}
-              style={[styles.navItem, active && styles.navItemActive]}
-              onPress={() => setActiveTab(item.key as typeof activeTab)}
-            >
-              <Ionicons
-                name={item.icon as any}
-                size={20}
-                color={active ? theme.accent : theme.faint}
-              />
-              <Text
-                style={[
-                  styles.navLabel,
-                  { color: theme.faint },
-                  active && styles.navLabelActive,
-                  active && { color: theme.title },
-                ]}
+      {!useSidebarNavigation ? (
+        <BlurView
+          intensity={26}
+          tint={themeMode === "light" ? "light" : "dark"}
+          style={[
+            styles.bottomNav,
+            isCompact && styles.bottomNavCompact,
+            {
+              borderColor: theme.cardBorder,
+              backgroundColor: theme.cardBackground,
+            },
+          ]}
+        >
+          {navigationItems.map((item) => {
+            const active = activeTab === item.key;
+            return (
+              <TouchableOpacity
+                key={item.key}
+                style={[styles.navItem, active && styles.navItemActive]}
+                onPress={() => setActiveTab(item.key)}
               >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </BlurView>
+                <Ionicons
+                  name={item.icon}
+                  size={20}
+                  color={active ? theme.accent : theme.faint}
+                />
+                <Text
+                  style={[
+                    styles.navLabel,
+                    { color: theme.faint },
+                    active && styles.navLabelActive,
+                    active && { color: theme.title },
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </BlurView>
+      ) : null}
 
       <Modal
         animationType="fade"
@@ -3189,8 +3256,58 @@ const styles = StyleSheet.create({
   },
   avatarFallback: { alignItems: "center", justifyContent: "center" },
   avatarText: { color: "#020617", fontWeight: "900" },
+  dashboardShell: {
+    flex: 1,
+  },
+  dashboardShellWeb: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 18,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  sideNav: {
+    width: 220,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 18,
+    alignSelf: "flex-start",
+    gap: 18,
+  },
+  sideNavTitle: {
+    fontSize: 19,
+    fontWeight: "900",
+  },
+  sideNavSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  sideNavItems: {
+    gap: 10,
+  },
+  sideNavItem: {
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  sideNavLabel: {
+    fontSize: 14,
+    fontWeight: "800",
+  },
   scroll: { flex: 1 },
+  scrollWeb: {
+    flex: 1,
+  },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 120, gap: 14 },
+  scrollContentWeb: {
+    paddingHorizontal: 0,
+    paddingBottom: 32,
+  },
   heroCard: {
     borderRadius: 26,
     padding: 20,
