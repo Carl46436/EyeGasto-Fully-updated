@@ -73,8 +73,15 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
 
   const handleSubmit = async () => {
     const numericAmount = Number.parseFloat(amount);
-    if (!description.trim() || Number.isNaN(numericAmount) || numericAmount <= 0) {
-      Alert.alert("Missing details", "Please enter a valid expense name and amount.");
+    if (
+      !description.trim() ||
+      Number.isNaN(numericAmount) ||
+      numericAmount <= 0
+    ) {
+      Alert.alert(
+        "Missing details",
+        "Please enter a valid expense name and amount.",
+      );
       return;
     }
 
@@ -116,17 +123,27 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
       >
         <View style={[styles.row, isCompact && styles.rowStack]}>
           <View style={styles.inputBlock}>
-            <Text style={[styles.label, isLight && styles.labelLight]}>Expense name</Text>
+            <Text style={[styles.label, isLight && styles.labelLight]}>
+              Expense name
+            </Text>
             <TextInput
               style={[styles.input, isLight && styles.inputLight]}
-              placeholder="Dinner with client"
+              placeholder="Dinner with Kean"
               placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
               value={description}
               onChangeText={setDescription}
             />
           </View>
-          <View style={[styles.inputBlock, styles.amountBlock, isCompact && styles.amountBlockCompact]}>
-            <Text style={[styles.label, isLight && styles.labelLight]}>Amount</Text>
+          <View
+            style={[
+              styles.inputBlock,
+              styles.amountBlock,
+              isCompact && styles.amountBlockCompact,
+            ]}
+          >
+            <Text style={[styles.label, isLight && styles.labelLight]}>
+              Amount
+            </Text>
             <TextInput
               style={[styles.input, isLight && styles.inputLight]}
               placeholder="0.00"
@@ -140,7 +157,9 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
 
         <View style={styles.row}>
           <View style={styles.inputBlock}>
-            <Text style={[styles.label, isLight && styles.labelLight]}>Category</Text>
+            <Text style={[styles.label, isLight && styles.labelLight]}>
+              Category
+            </Text>
             <TextInput
               style={[styles.input, isLight && styles.inputLight]}
               placeholder="Food, Bills, Transport"
@@ -152,9 +171,15 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
         </View>
 
         <View style={styles.inputBlock}>
-          <Text style={[styles.label, isLight && styles.labelLight]}>Notes</Text>
+          <Text style={[styles.label, isLight && styles.labelLight]}>
+            Notes
+          </Text>
           <TextInput
-            style={[styles.input, styles.notesInput, isLight && styles.inputLight]}
+            style={[
+              styles.input,
+              styles.notesInput,
+              isLight && styles.inputLight,
+            ]}
             placeholder="Short context, merchant, or reminder"
             placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
             value={notes}
@@ -166,10 +191,20 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
         <View style={[styles.receiptCard, isLight && styles.receiptCardLight]}>
           <View style={styles.receiptHeader}>
             <View>
-              <Text style={[styles.receiptTitle, isLight && styles.receiptTitleLight]}>
+              <Text
+                style={[
+                  styles.receiptTitle,
+                  isLight && styles.receiptTitleLight,
+                ]}
+              >
                 Receipt image
               </Text>
-              <Text style={[styles.receiptSubtitle, isLight && styles.receiptSubtitleLight]}>
+              <Text
+                style={[
+                  styles.receiptSubtitle,
+                  isLight && styles.receiptSubtitleLight,
+                ]}
+              >
                 Save a photo with this expense for future proof.
               </Text>
             </View>
@@ -200,7 +235,10 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
           ) : (
             <TouchableOpacity
               activeOpacity={0.85}
-              style={[styles.previewPlaceholder, isLight && styles.previewPlaceholderLight]}
+              style={[
+                styles.previewPlaceholder,
+                isLight && styles.previewPlaceholderLight,
+              ]}
               onPress={handlePickImage}
             >
               <Ionicons name="scan-outline" size={22} color="#38BDF8" />

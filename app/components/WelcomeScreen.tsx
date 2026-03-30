@@ -20,13 +20,13 @@ interface Props {
 const featureList = [
   "Track daily spending with receipts and clean categories",
   "Review monthly movement with charts, export tools, and gallery views",
-  "Stay aligned across app and web with one account workspace",
+  "One account. Total sync. Access your data on your phone or the web.",
 ];
 
 const insightRows = [
   { label: "Receipt-backed entries", value: "Visual proof" },
   { label: "Recurring planning", value: "Monthly flow" },
-  { label: "Smart exports", value: "CSV, JSON, summary" },
+  { label: "Smart exports", value: "CSV, JSON, Summary Reports" },
 ];
 
 export default function WelcomeScreen({
@@ -55,25 +55,35 @@ export default function WelcomeScreen({
           <View style={styles.mobileHero}>
             <View style={styles.brandRow}>
               <View style={styles.brandBadge}>
-                <Ionicons name="eye-outline" size={20} color="#082F49" />
+                <LinearGradient
+                  colors={["#67E8F9", "#38BDF8", "#2563EB"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.brandBadgeFill}
+                >
+                  <Ionicons name="eye-outline" size={20} color="#082F49" />
+                </LinearGradient>
               </View>
-              <Text style={styles.brandText}>EyeGasto</Text>
+              <View style={styles.brandCopy}>
+                <Text style={styles.brandText}>EyeGasto</Text>
+              </View>
             </View>
 
-            <Text style={styles.mobileEyebrow}>Personal expense companion</Text>
+            <Text style={styles.mobileEyebrow}>Your Budget buddy </Text>
             <Text style={styles.mobileHeadline}>
-              Stay on top of spending without losing the details.
+              Track every Peso, effortlessly.
             </Text>
             <Text style={styles.mobileSubtitle}>
-              Track purchases, save receipts, and review the month from one
-              calmer workspace.
+              Track purchases, save receipts, and review the month from one tap
             </Text>
           </View>
 
           <BlurView intensity={28} tint="dark" style={styles.mobilePreview}>
             <View style={styles.mobilePreviewHeader}>
-              <Text style={styles.visualEyebrow}>Monthly snapshot</Text>
-              <Text style={styles.mobilePreviewTitle}>A cleaner way to review spending</Text>
+              <Text style={styles.visualEyebrow}>Quick Look</Text>
+              <Text style={styles.mobilePreviewTitle}>
+                See where your money goes.
+              </Text>
             </View>
 
             <View style={styles.mobileBalanceCard}>
@@ -92,7 +102,11 @@ export default function WelcomeScreen({
             </View>
           </BlurView>
 
-          <BlurView intensity={22} tint="dark" style={styles.mobileFeaturePanel}>
+          <BlurView
+            intensity={22}
+            tint="dark"
+            style={styles.mobileFeaturePanel}
+          >
             {featureList.map((feature) => (
               <View key={feature} style={styles.featureRow}>
                 <View style={styles.featureDot} />
@@ -139,18 +153,27 @@ export default function WelcomeScreen({
         <View style={[styles.heroColumn, isWebWide && styles.heroColumnWide]}>
           <View style={styles.brandRow}>
             <View style={styles.brandBadge}>
-              <Ionicons name="eye-outline" size={20} color="#082F49" />
+              <LinearGradient
+                colors={["#67E8F9", "#38BDF8", "#2563EB"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.brandBadgeFill}
+              >
+                <Ionicons name="eye-outline" size={20} color="#082F49" />
+              </LinearGradient>
             </View>
-            <Text style={styles.brandText}>EyeGasto</Text>
+            <View style={styles.brandCopy}>
+              <Text style={styles.brandText}>EyeGasto</Text>
+            </View>
           </View>
 
           <Text style={[styles.headline, isWebWide && styles.headlineWide]}>
-            See where your money goes before the month gets away from you.
+            See where your money goes. All in one place, with zero hassle.
           </Text>
 
           <Text style={[styles.subtitle, isWebWide && styles.subtitleWide]}>
-            A cleaner expense workspace for logging spending, reviewing trends,
-            and keeping receipts attached to every important purchase.
+            The easy way to track your spending, see your habits, and keep all
+            your receipts in one safe place.
           </Text>
 
           <View style={[styles.actionRow, !isWebWide && styles.actionRowStack]}>
@@ -195,16 +218,24 @@ export default function WelcomeScreen({
           />
 
           <View style={styles.visualHeader}>
-            <Text style={styles.visualEyebrow}>Your money map</Text>
-            <Text style={styles.visualTitle}>Built for focus, not clutter</Text>
+            <Text style={styles.visualEyebrow}>Quick Look</Text>
+            <Text style={styles.visualTitle}>
+              Built for optimized oversight
+            </Text>
           </View>
 
           <View style={styles.mockFrame}>
             <View style={styles.mockTopBar}>
               <View style={styles.mockDots}>
-                <View style={[styles.mockDot, { backgroundColor: "#F97316" }]} />
-                <View style={[styles.mockDot, { backgroundColor: "#22C55E" }]} />
-                <View style={[styles.mockDot, { backgroundColor: "#38BDF8" }]} />
+                <View
+                  style={[styles.mockDot, { backgroundColor: "#F97316" }]}
+                />
+                <View
+                  style={[styles.mockDot, { backgroundColor: "#22C55E" }]}
+                />
+                <View
+                  style={[styles.mockDot, { backgroundColor: "#38BDF8" }]}
+                />
               </View>
               <Text style={styles.mockTitle}>Live dashboard</Text>
             </View>
@@ -400,24 +431,43 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   brandRow: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(125, 211, 252, 0.16)",
+    backgroundColor: "rgba(8, 15, 30, 0.62)",
   },
   brandBadge: {
-    width: 42,
-    height: 42,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    padding: 2,
+    backgroundColor: "rgba(103, 232, 249, 0.16)",
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  brandBadgeFill: {
+    flex: 1,
     borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#67E8F9",
+  },
+  brandCopy: {
+    justifyContent: "center",
   },
   brandText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "900",
-    color: "#E0F2FE",
-    letterSpacing: 1.4,
-    textTransform: "uppercase",
+    color: "#F8FAFC",
+    letterSpacing: 0.6,
   },
   headline: {
     marginTop: 22,

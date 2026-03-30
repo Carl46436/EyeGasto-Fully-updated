@@ -65,7 +65,10 @@ export default function LoginScreen({
 
   const handleForgotPassword = async () => {
     if (!email.trim()) {
-      Alert.alert("Enter your email", "Type your email first to reset your password.");
+      Alert.alert(
+        "Enter your email",
+        "Type your email first to reset your password.",
+      );
       return;
     }
 
@@ -120,7 +123,9 @@ export default function LoginScreen({
               },
             ]}
           >
-            <View style={[styles.copyColumn, isWebWide && styles.copyColumnWide]}>
+            <View
+              style={[styles.copyColumn, isWebWide && styles.copyColumnWide]}
+            >
               <TouchableOpacity onPress={onBackPress} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={16} color="#E0F2FE" />
                 <Text style={styles.backText}>Back</Text>
@@ -128,26 +133,35 @@ export default function LoginScreen({
 
               <View style={styles.brandRow}>
                 <View style={styles.brandBadge}>
-                  <Ionicons name="eye-outline" size={20} color="#082F49" />
+                  <LinearGradient
+                    colors={["#67E8F9", "#38BDF8", "#2563EB"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.brandBadgeFill}
+                  >
+                    <Ionicons name="eye-outline" size={20} color="#082F49" />
+                  </LinearGradient>
                 </View>
-                <Text style={styles.brandText}>EyeGasto</Text>
+                <View style={styles.brandCopy}>
+                  <Text style={styles.brandText}>EyeGasto</Text>
+                </View>
               </View>
 
               <Text style={styles.eyebrow}>Welcome back</Text>
               <Text style={[styles.title, isWebWide && styles.titleWide]}>
-                Pick up your expense flow where you left it.
+                Ready to jump back in?
               </Text>
               <Text style={styles.subtitle}>
-                Sign in to review trends, receipts, recurring plans, and recent activity
-                across app and web.
+                Log in to see your latest spending, saved receipts, and synced
+                data.
               </Text>
 
               {isWebWide ? (
                 <View style={styles.sideNotes}>
                   {[
-                    "Live dashboard summaries and receipt gallery",
-                    "Cloud-synced profile, preferences, and exports",
-                    "Recurring monthly plans ready when you log back in",
+                    "View your receipts and dashboard at a glance",
+                    "Everything stays synced to your cloud profile",
+                    "Your monthly plans are ready to go",
                   ].map((item) => (
                     <View key={item} style={styles.noteRow}>
                       <View style={styles.noteDot} />
@@ -175,7 +189,7 @@ export default function LoginScreen({
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="you@example.com"
+                    placeholder="you@gmail.com"
                     value={email}
                     onChangeText={setEmail}
                     onFocus={() => scrollToField(250)}
@@ -334,24 +348,43 @@ const styles = StyleSheet.create({
   },
   brandRow: {
     marginTop: 10,
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(125, 211, 252, 0.16)",
+    backgroundColor: "rgba(8, 15, 30, 0.62)",
   },
   brandBadge: {
-    width: 42,
-    height: 42,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    padding: 2,
+    backgroundColor: "rgba(103, 232, 249, 0.16)",
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  brandBadgeFill: {
+    flex: 1,
     borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#67E8F9",
+  },
+  brandCopy: {
+    justifyContent: "center",
   },
   brandText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "900",
-    color: "#E0F2FE",
-    letterSpacing: 1.4,
-    textTransform: "uppercase",
+    color: "#F8FAFC",
+    letterSpacing: 0.6,
   },
   eyebrow: {
     marginTop: 10,

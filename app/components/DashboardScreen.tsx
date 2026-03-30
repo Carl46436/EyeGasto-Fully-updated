@@ -19,8 +19,10 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as Linking from "expo-linking";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { Image } from "expo-image";
@@ -61,10 +63,20 @@ interface Props {
   onLogout: () => void;
 }
 
-type InfoSheet = "terms" | "about" | null;
+type InfoSheet = "terms" | "privacy" | "faq" | "about" | null;
 type ThemeMode = "dark" | "light";
 type ExportFormat = "csv" | "json" | "summary";
 type DateRangeKey = "thisMonth" | "lastMonth" | "last30Days" | "allTime";
+
+interface InfoSection {
+  heading: string;
+  body: string;
+}
+
+interface FaqItem {
+  question: string;
+  answer: string;
+}
 
 interface DashboardPreferences {
   themeMode: ThemeMode;
@@ -87,6 +99,11 @@ const formatChartAmount = (amount: number) =>
     currency: "PHP",
     maximumFractionDigits: 0,
   }).format(amount);
+
+const APP_VERSION =
+  Constants.expoConfig?.version ??
+  Constants.manifest2?.extra?.expoClient?.version ??
+  "1.0.0";
 
 export default function DashboardScreen({
   user,
@@ -137,6 +154,7 @@ export default function DashboardScreen({
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [infoSheet, setInfoSheet] = useState<InfoSheet>(null);
+  const [expandedFaqIndex, setExpandedFaqIndex] = useState<number | null>(0);
   const [isExporting, setIsExporting] = useState(false);
   const [isPreferencesReady, setIsPreferencesReady] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<Expense | null>(null);
@@ -1063,13 +1081,120 @@ export default function DashboardScreen({
   const infoContent = {
     terms: {
       title: "Terms of Use",
-      body: "EyeGasto stores account details, expense records, and attached receipt images so users can manage spending history. By using the app, users agree to keep uploaded files lawful, personal, and relevant to expense tracking. Shared devices should be protected with account logout and secure passwords.",
+      sections: [
+        {
+          heading: "Using EyeGasto",
+          body: "EyeGasto is designed for personal expense tracking, receipt storage, and budgeting insights. Use the app only for lawful and relevant financial records.",
+        },
+        {
+          heading: "Your Responsibility",
+          body: "You are responsible for keeping your login credentials secure, reviewing what you upload, and protecting access on shared devices by logging out when needed.",
+        },
+        {
+          heading: "Uploads and Records",
+          body: "Receipt images, notes, and exported reports should only contain information you are comfortable storing and sharing from your account.",
+        },
+      ] satisfies InfoSection[],
+    },
+    privacy: {
+      title: "Privacy Policy",
+      sections: [
+        {
+          heading: "What We Store",
+          body: "EyeGasto stores your profile details, expense records, recurring plans, and receipt files so your data can sync across supported devices.",
+        },
+        {
+          heading: "How It Is Used",
+          body: "Stored data is used to power dashboard analytics, exports, receipt previews, and recurring expense generation within your own account experience.",
+        },
+        {
+          heading: "Sharing and Exports",
+          body: "Exports and shared files are initiated by you. Review their contents carefully before sending or storing them outside the app.",
+        },
+      ] satisfies InfoSection[],
+    },
+    faq: {
+      title: "Frequently Asked Questions",
+      items: [
+        {
+          question: "Can I use EyeGasto on web and mobile?",
+          answer:
+            "Yes. Your account data syncs across web and mobile when you sign in with the same credentials.",
+        },
+        {
+          question: "Are my receipt images backed up?",
+          answer:
+            "Receipt images attached to expenses are stored with your account so they can appear across supported devices.",
+        },
+        {
+          question: "Can I export my data?",
+          answer:
+            "Yes. The dashboard includes CSV, JSON, and summary export options for your expense records.",
+        },
+        {
+          question: "How do recurring expenses work?",
+          answer:
+            "Monthly recurring plans automatically create upcoming expense entries when they become due.",
+        },
+      ] satisfies FaqItem[],
     },
     about: {
       title: "About EyeGasto",
-      body: "EyeGasto is a modern expense tracker focused on fast entry, clean analytics, and visual proof through receipt uploads. The current experience is built around daily monitoring, category trends, and a streamlined dark interface for mobile-first budgeting.",
+      sections: [
+        {
+          heading: "What EyeGasto Is",
+          body: "EyeGasto is a modern expense tracker focused on fast entry, clean analytics, and visual proof through receipt uploads.",
+        },
+        {
+          heading: "What It Helps With",
+          body: "The app is built for daily monitoring, category trends, recurring planning, and quick review of recent spending activity.",
+        },
+        {
+          heading: "Experience Focus",
+          body: "The current experience emphasizes a streamlined dashboard, mobile-friendly flow, and a consistent look across app and web.",
+        },
+      ] satisfies InfoSection[],
     },
   } as const;
+
+  const openMailAction = async (subject: string) => {
+    const mailtoUrl = `mailto:carl46436@gmail.com?subject=${encodeURIComponent(subject)}`;
+    const canOpen = await Linking.canOpenURL(mailtoUrl);
+
+    if (canOpen) {
+      await Linking.openURL(mailtoUrl);
+      return;
+    }
+
+    Alert.alert(
+      "Email unavailable",
+      "Please email support@eyegasto.app from your preferred mail app.",
+    );
+  };
+
+  const handleContactSupport = async () => {
+    try {
+      await openMailAction("EyeGasto Support Request");
+    } catch (error) {
+      console.error("Failed to open support email", error);
+      Alert.alert(
+        "Support unavailable",
+        "Please email support@eyegasto.app for help.",
+      );
+    }
+  };
+
+  const handleReportBug = async () => {
+    try {
+      await openMailAction("EyeGasto Bug Report");
+    } catch (error) {
+      console.error("Failed to open bug report email", error);
+      Alert.alert(
+        "Bug report unavailable",
+        "Please email support@eyegasto.app with the issue details.",
+      );
+    }
+  };
 
   return (
     <SafeAreaView
@@ -1084,8 +1209,17 @@ export default function DashboardScreen({
 
       <View style={[styles.header, isCompact && styles.headerCompact]}>
         <View style={styles.headerLeft}>
-          {renderAvatar(40, 18)}
-          <View>
+          <View style={styles.headerBrandBadge}>
+            <LinearGradient
+              colors={["#67E8F9", "#38BDF8", "#2563EB"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.headerBrandBadgeFill}
+            >
+              <Ionicons name="eye-outline" size={20} color="#082F49" />
+            </LinearGradient>
+          </View>
+          <View style={styles.headerBrandCopy}>
             <Text style={[styles.headerTitle, { color: theme.title }]}>
               EyeGasto
             </Text>
@@ -1125,7 +1259,12 @@ export default function DashboardScreen({
         ) : null}
       </View>
 
-      <View style={[styles.dashboardShell, useSidebarNavigation && styles.dashboardShellWeb]}>
+      <View
+        style={[
+          styles.dashboardShell,
+          useSidebarNavigation && styles.dashboardShellWeb,
+        ]}
+      >
         {useSidebarNavigation ? (
           <BlurView
             intensity={28}
@@ -1138,8 +1277,29 @@ export default function DashboardScreen({
               },
             ]}
           >
-            <View>
-              <Text style={[styles.sideNavTitle, { color: theme.title }]}>Workspace</Text>
+            <View style={styles.sideNavIntro}>
+              <View style={styles.sideNavBrand}>
+                <View style={styles.sideNavBrandBadge}>
+                  <LinearGradient
+                    colors={["#67E8F9", "#38BDF8", "#2563EB"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.sideNavBrandBadgeFill}
+                  >
+                    <Ionicons name="eye-outline" size={18} color="#082F49" />
+                  </LinearGradient>
+                </View>
+                <View style={styles.sideNavBrandCopy}>
+                  <Text
+                    style={[styles.sideNavBrandText, { color: theme.title }]}
+                  >
+                    EyeGasto
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.sideNavTitle, { color: theme.title }]}>
+                Dashboard Navigation
+              </Text>
               <Text style={[styles.sideNavSubtitle, { color: theme.faint }]}>
                 Jump between dashboard sections.
               </Text>
@@ -1211,459 +1371,94 @@ export default function DashboardScreen({
               ],
             }}
           >
-          {activeTab === "overview" ? (
-            <>
-              <LinearGradient
-                colors={theme.hero}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[
-                  styles.heroCard,
-                  {
-                    borderColor: theme.cardBorder,
-                    backgroundColor: theme.cardBackground,
-                  },
-                ]}
-              >
-                <Text style={[styles.heroEyebrow, { color: theme.accent }]}>
-                  Today
-                </Text>
-                <Text style={[styles.heroTitle, { color: theme.title }]}>
-                  Track your expenses one place.
-                </Text>
-                <Text style={[styles.heroSubtitle, { color: theme.muted }]}>
-                  Add a receipt, update your budget, and scan recent entries
-                  without leaving the dashboard.
-                </Text>
-              </LinearGradient>
-
-              <View
-                style={[
-                  styles.filterShell,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    borderColor: theme.cardBorder,
-                  },
-                ]}
-              >
-                <View>
-                  <Text style={[styles.sectionTitle, { color: theme.title }]}>
-                    Activity Range
-                  </Text>
-                  <Text
-                    style={[styles.sectionSubtitle, { color: theme.faint }]}
-                  >
-                    Dashboard lists, gallery, and exports currently reflect{" "}
-                    {dateRangeLabel.toLowerCase()}.
-                  </Text>
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.filterChipRow}
-                >
-                  {[
-                    { key: "thisMonth" as const, label: "This month" },
-                    { key: "lastMonth" as const, label: "Last month" },
-                    { key: "last30Days" as const, label: "Last 30 days" },
-                    { key: "allTime" as const, label: "All time" },
-                  ].map((option) => (
-                    <TouchableOpacity
-                      key={option.key}
-                      style={[
-                        styles.filterChip,
-                        {
-                          backgroundColor: theme.mutedSurface,
-                          borderColor: theme.cardBorder,
-                        },
-                        dateRange === option.key && styles.filterChipActive,
-                      ]}
-                      onPress={() => setDateRange(option.key)}
-                    >
-                      <Text
-                        style={[
-                          styles.filterChipText,
-                          { color: theme.faint },
-                          dateRange === option.key &&
-                            styles.filterChipTextActive,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              <View
-                style={[
-                  styles.panel,
-                  styles.addPanel,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    borderColor: theme.cardBorder,
-                  },
-                ]}
-              >
-                <View
+            {activeTab === "overview" ? (
+              <>
+                <LinearGradient
+                  colors={theme.hero}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
                   style={[
-                    styles.panelHeader,
-                    isCompact && styles.panelHeaderStack,
-                  ]}
-                >
-                  <View>
-                    <Text style={[styles.sectionTitle, { color: theme.title }]}>
-                      Add Expense
-                    </Text>
-                    <Text
-                      style={[styles.sectionSubtitle, { color: theme.faint }]}
-                    >
-                      Save the amount, category, notes, and optional receipt.
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.iconToggle,
-                      {
-                        backgroundColor: showAddForm
-                          ? "rgba(34, 211, 238, 0.18)"
-                          : "rgba(30, 41, 59, 0.92)",
-                        borderColor: showAddForm
-                          ? "rgba(34, 211, 238, 0.42)"
-                          : theme.cardBorder,
-                      },
-                    ]}
-                    onPress={() => setShowAddForm((value) => !value)}
-                  >
-                    <Ionicons
-                      name={showAddForm ? "remove" : "add"}
-                      size={20}
-                      color={showAddForm ? "#67E8F9" : "#E2E8F0"}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                {showAddForm ? (
-                  <AddExpenseForm onAdd={onAddExpense} mode={themeMode} />
-                ) : null}
-
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.quickAddRow}
-                >
-                  {quickAdds.map((item) => (
-                    <TouchableOpacity
-                      key={`${item.label}-${item.amount}`}
-                      style={[
-                        styles.quickAddChip,
-                        {
-                          backgroundColor: theme.mutedSurface,
-                          borderColor: theme.cardBorder,
-                        },
-                      ]}
-                      onPress={() =>
-                        handleQuickAdd(item.label, item.amount, item.category)
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.quickAddChipLabel,
-                          { color: theme.title },
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.quickAddChipAmount,
-                          { color: theme.muted },
-                        ]}
-                      >
-                        {formatAmount(item.amount)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-
-                {(user.recurringExpenses?.length ?? 0) > 0 ? (
-                  <View style={styles.recurringPlansWrap}>
-                    <View style={styles.panelHeader}>
-                      <View>
-                        <Text
-                          style={[styles.sectionTitle, { color: theme.title }]}
-                        >
-                          Monthly Plans
-                        </Text>
-                        <Text
-                          style={[
-                            styles.sectionSubtitle,
-                            { color: theme.faint },
-                          ]}
-                        >
-                          These recurring expenses are recreated automatically
-                          each month.
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.recurringPlansList}>
-                      {(user.recurringExpenses ?? [])
-                        .filter((item) => item.isActive !== false)
-                        .map((item) => (
-                          <View
-                            key={item.id}
-                            style={[
-                              styles.recurringPlanCard,
-                              {
-                                backgroundColor: theme.mutedSurface,
-                                borderColor: theme.cardBorder,
-                              },
-                            ]}
-                          >
-                            <View style={styles.recurringPlanCopy}>
-                              <Text
-                                style={[
-                                  styles.recurringPlanTitle,
-                                  { color: theme.title },
-                                ]}
-                              >
-                                {item.description}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.recurringPlanMeta,
-                                  { color: theme.muted },
-                                ]}
-                              >
-                                {formatAmount(item.amount)} · every month on day{" "}
-                                {item.dayOfMonth}
-                              </Text>
-                            </View>
-                            <TouchableOpacity
-                              style={styles.recurringPlanRemove}
-                              onPress={() =>
-                                handleRemoveRecurringExpense(item.id)
-                              }
-                            >
-                              <Ionicons
-                                name="close"
-                                size={16}
-                                color="#FCA5A5"
-                              />
-                            </TouchableOpacity>
-                          </View>
-                        ))}
-                    </View>
-                  </View>
-                ) : null}
-              </View>
-
-              <View
-                style={[
-                  styles.panel,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    borderColor: theme.cardBorder,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.panelHeader,
-                    isCompact && styles.panelHeaderStack,
-                  ]}
-                >
-                  <View>
-                    <Text style={[styles.sectionTitle, { color: theme.title }]}>
-                      Overview
-                    </Text>
-                    <Text
-                      style={[styles.sectionSubtitle, { color: theme.faint }]}
-                    >
-                      Monthly totals and budget status with{" "}
-                      {dateRangeLabel.toLowerCase()} activity in view.
-                    </Text>
-                  </View>
-                </View>
-
-                <View
-                  style={[
-                    styles.statsGrid,
-                    isCompact && styles.statsGridCompact,
-                  ]}
-                >
-                  {isExpensesLoading || !isPreferencesReady ? (
-                    <>
-                      {Array.from({ length: 3 }).map((_, index) => (
-                        <View
-                          key={`stats-skeleton-${index}`}
-                          style={[
-                            styles.statsSkeletonCard,
-                            {
-                              backgroundColor: theme.mutedSurface,
-                              borderColor: theme.cardBorder,
-                            },
-                          ]}
-                        >
-                          {renderSkeletonCard(12, "42%")}
-                          {renderSkeletonCard(36, "78%")}
-                          {renderSkeletonCard(12, "58%")}
-                        </View>
-                      ))}
-                    </>
-                  ) : (
-                    <>
-                      <StatsCard
-                        title="Last Month"
-                        amount={stats.lastMonth}
-                        type="expense"
-                        period="month"
-                        mode={themeMode}
-                      />
-                      <StatsCard
-                        title="This Month"
-                        amount={stats.thisMonth}
-                        type="expense"
-                        period="month"
-                        mode={themeMode}
-                      />
-                      <StatsCard
-                        title="Total Expenses"
-                        amount={stats.total}
-                        type="expense"
-                        period="total"
-                        mode={themeMode}
-                      />
-                    </>
-                  )}
-                </View>
-
-                <View
-                  style={[
-                    styles.budgetShell,
+                    styles.heroCard,
                     {
-                      backgroundColor: theme.mutedSurface,
+                      borderColor: theme.cardBorder,
+                      backgroundColor: theme.cardBackground,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.heroEyebrow, { color: theme.accent }]}>
+                    Today
+                  </Text>
+                  <Text style={[styles.heroTitle, { color: theme.title }]}>
+                    Track your expenses one place.
+                  </Text>
+                  <Text style={[styles.heroSubtitle, { color: theme.muted }]}>
+                    Add a receipt, update your budget, and scan recent entries
+                    without leaving the dashboard.
+                  </Text>
+                </LinearGradient>
+
+                <View
+                  style={[
+                    styles.filterShell,
+                    {
+                      backgroundColor: theme.cardBackground,
                       borderColor: theme.cardBorder,
                     },
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.budgetHeader,
-                      isCompact && styles.budgetHeaderStack,
-                    ]}
+                  <View>
+                    <Text style={[styles.sectionTitle, { color: theme.title }]}>
+                      Activity Range
+                    </Text>
+                    <Text
+                      style={[styles.sectionSubtitle, { color: theme.faint }]}
+                    >
+                      Dashboard lists, gallery, and exports currently reflect{" "}
+                      {dateRangeLabel.toLowerCase()}.
+                    </Text>
+                  </View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.filterChipRow}
                   >
-                    <View style={styles.budgetBlock}>
-                      <Text
-                        style={[styles.budgetLabel, { color: theme.muted }]}
-                      >
-                        Monthly budget
-                      </Text>
-                      <TextInput
+                    {[
+                      { key: "thisMonth" as const, label: "This month" },
+                      { key: "lastMonth" as const, label: "Last month" },
+                      { key: "last30Days" as const, label: "Last 30 days" },
+                      { key: "allTime" as const, label: "All time" },
+                    ].map((option) => (
+                      <TouchableOpacity
+                        key={option.key}
                         style={[
-                          styles.budgetInput,
+                          styles.filterChip,
                           {
-                            backgroundColor: theme.cardBackground,
+                            backgroundColor: theme.mutedSurface,
                             borderColor: theme.cardBorder,
-                            color: theme.title,
                           },
+                          dateRange === option.key && styles.filterChipActive,
                         ]}
-                        value={String(monthlyBudget)}
-                        onChangeText={(value) =>
-                          setMonthlyBudget(
-                            Number.parseFloat(value.replace(/[^0-9.]/g, "")) ||
-                              0,
-                          )
-                        }
-                        keyboardType="numeric"
-                      />
-                    </View>
-                    <View style={styles.budgetSummary}>
-                      <Text
-                        style={[styles.budgetLabel, { color: theme.muted }]}
+                        onPress={() => setDateRange(option.key)}
                       >
-                        Spent so far
-                      </Text>
-                      <Text
-                        style={[styles.budgetValue, { color: theme.title }]}
-                      >
-                        {formatAmount(stats.thisMonth)}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.budgetTrack}>
-                    <LinearGradient
-                      colors={["#22D3EE", "#3B82F6", "#8B5CF6"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={[
-                        styles.budgetFill,
-                        { width: `${Math.max(budgetUsage * 100, 4)}%` },
-                      ]}
-                    />
-                  </View>
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            { color: theme.faint },
+                            dateRange === option.key &&
+                              styles.filterChipTextActive,
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                 </View>
 
-                <View
-                  style={[
-                    styles.budgetAlertCard,
-                    budgetAlert.tone === "danger"
-                      ? styles.budgetAlertDanger
-                      : budgetAlert.tone === "warning"
-                        ? styles.budgetAlertWarning
-                        : budgetAlert.tone === "success"
-                          ? styles.budgetAlertSuccess
-                          : styles.budgetAlertNeutral,
-                    {
-                      backgroundColor: theme.mutedSurface,
-                      borderColor: theme.cardBorder,
-                    },
-                  ]}
-                >
-                  <View style={styles.budgetAlertHeader}>
-                    <Ionicons
-                      name={
-                        budgetAlert.tone === "danger"
-                          ? "warning-outline"
-                          : budgetAlert.tone === "warning"
-                            ? "alert-circle-outline"
-                            : "shield-checkmark-outline"
-                      }
-                      size={18}
-                      color={
-                        budgetAlert.tone === "danger"
-                          ? "#F87171"
-                          : budgetAlert.tone === "warning"
-                            ? "#FBBF24"
-                            : "#34D399"
-                      }
-                    />
-                    <Text
-                      style={[styles.budgetAlertTitle, { color: theme.title }]}
-                    >
-                      {budgetAlert.title}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[styles.budgetAlertText, { color: theme.muted }]}
-                  >
-                    {budgetAlert.message}
-                  </Text>
-                </View>
-              </View>
-
-              <View
-                style={[
-                  styles.workspaceRow,
-                  isCompact && styles.workspaceColumn,
-                ]}
-              >
                 <View
                   style={[
                     styles.panel,
-                    styles.recentPanel,
-                    isCompact && styles.fullWidthPanel,
+                    styles.addPanel,
                     {
                       backgroundColor: theme.cardBackground,
                       borderColor: theme.cardBorder,
@@ -1678,140 +1473,536 @@ export default function DashboardScreen({
                   >
                     <View>
                       <Text
-                        style={[
-                          styles.sectionTitleLarge,
-                          { color: theme.title },
-                        ]}
+                        style={[styles.sectionTitle, { color: theme.title }]}
                       >
-                        Recent Expenses
+                        Add Expense
                       </Text>
                       <Text
                         style={[styles.sectionSubtitle, { color: theme.faint }]}
                       >
-                        Search and review your latest entries.
+                        Save the amount, category, notes, and optional receipt.
                       </Text>
                     </View>
                     <TouchableOpacity
-                      style={styles.clearButton}
-                      onPress={confirmClearAll}
+                      style={[
+                        styles.iconToggle,
+                        {
+                          backgroundColor: showAddForm
+                            ? "rgba(34, 211, 238, 0.18)"
+                            : "rgba(30, 41, 59, 0.92)",
+                          borderColor: showAddForm
+                            ? "rgba(34, 211, 238, 0.42)"
+                            : theme.cardBorder,
+                        },
+                      ]}
+                      onPress={() => setShowAddForm((value) => !value)}
                     >
-                      <Text style={styles.clearButtonText}>Clear all</Text>
+                      <Ionicons
+                        name={showAddForm ? "remove" : "add"}
+                        size={20}
+                        color={showAddForm ? "#67E8F9" : "#E2E8F0"}
+                      />
                     </TouchableOpacity>
                   </View>
 
-                  <TextInput
-                    style={[
-                      styles.searchInput,
-                      {
-                        backgroundColor: theme.mutedSurface,
-                        borderColor: theme.cardBorder,
-                        color: theme.title,
-                      },
-                    ]}
-                    placeholder="Search expenses, categories, or notes"
-                    placeholderTextColor={theme.faint}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                  />
+                  {showAddForm ? (
+                    <AddExpenseForm onAdd={onAddExpense} mode={themeMode} />
+                  ) : null}
 
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.categoryRow}
+                    contentContainerStyle={styles.quickAddRow}
                   >
-                    {categories.map((category) => (
+                    {quickAdds.map((item) => (
                       <TouchableOpacity
-                        key={category}
+                        key={`${item.label}-${item.amount}`}
                         style={[
-                          styles.categoryChip,
-                          styles.categoryChipFixed,
+                          styles.quickAddChip,
                           {
                             backgroundColor: theme.mutedSurface,
                             borderColor: theme.cardBorder,
                           },
-                          selectedCategory === category &&
-                            styles.categoryChipActive,
                         ]}
                         onPress={() =>
-                          setSelectedCategory(
-                            category as typeof selectedCategory,
-                          )
+                          handleQuickAdd(item.label, item.amount, item.category)
                         }
                       >
                         <Text
                           style={[
-                            styles.categoryChipText,
-                            { color: theme.faint },
-                            selectedCategory === category &&
-                              styles.categoryChipTextActive,
+                            styles.quickAddChipLabel,
+                            { color: theme.title },
                           ]}
                         >
-                          {category}
+                          {item.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.quickAddChipAmount,
+                            { color: theme.muted },
+                          ]}
+                        >
+                          {formatAmount(item.amount)}
                         </Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
 
-                  {isExpensesLoading ? (
-                    renderRecentSkeletons()
-                  ) : (
-                    <ExpenseList
-                      expenses={displayedExpenses}
-                      onDelete={confirmDeleteExpense}
-                      onEdit={startEditingExpense}
-                      mode={themeMode}
-                    />
-                  )}
+                  {(user.recurringExpenses?.length ?? 0) > 0 ? (
+                    <View style={styles.recurringPlansWrap}>
+                      <View style={styles.panelHeader}>
+                        <View>
+                          <Text
+                            style={[
+                              styles.sectionTitle,
+                              { color: theme.title },
+                            ]}
+                          >
+                            Monthly Plans
+                          </Text>
+                          <Text
+                            style={[
+                              styles.sectionSubtitle,
+                              { color: theme.faint },
+                            ]}
+                          >
+                            These recurring expenses are recreated automatically
+                            each month.
+                          </Text>
+                        </View>
+                      </View>
 
-                  {visibleExpenses.length > 5 && !searchQuery.trim() ? (
-                    <TouchableOpacity
-                      style={styles.showAllButton}
-                      onPress={() => setShowAllExpenses((value) => !value)}
-                    >
-                      <Text
-                        style={[
-                          styles.showAllButtonText,
-                          { color: theme.accent },
-                        ]}
-                      >
-                        {showAllExpenses
-                          ? "Show less"
-                          : `View all ${visibleExpenses.length} expenses`}
-                      </Text>
-                      <Ionicons
-                        name={showAllExpenses ? "chevron-up" : "chevron-down"}
-                        size={16}
-                        color="#7DD3FC"
-                      />
-                    </TouchableOpacity>
+                      <View style={styles.recurringPlansList}>
+                        {(user.recurringExpenses ?? [])
+                          .filter((item) => item.isActive !== false)
+                          .map((item) => (
+                            <View
+                              key={item.id}
+                              style={[
+                                styles.recurringPlanCard,
+                                {
+                                  backgroundColor: theme.mutedSurface,
+                                  borderColor: theme.cardBorder,
+                                },
+                              ]}
+                            >
+                              <View style={styles.recurringPlanCopy}>
+                                <Text
+                                  style={[
+                                    styles.recurringPlanTitle,
+                                    { color: theme.title },
+                                  ]}
+                                >
+                                  {item.description}
+                                </Text>
+                                <Text
+                                  style={[
+                                    styles.recurringPlanMeta,
+                                    { color: theme.muted },
+                                  ]}
+                                >
+                                  {formatAmount(item.amount)} · every month on
+                                  day {item.dayOfMonth}
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                style={styles.recurringPlanRemove}
+                                onPress={() =>
+                                  handleRemoveRecurringExpense(item.id)
+                                }
+                              >
+                                <Ionicons
+                                  name="close"
+                                  size={16}
+                                  color="#FCA5A5"
+                                />
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                      </View>
+                    </View>
                   ) : null}
                 </View>
 
                 <View
                   style={[
                     styles.panel,
-                    styles.signalPanel,
-                    isCompact && styles.fullWidthPanel,
                     {
                       backgroundColor: theme.cardBackground,
                       borderColor: theme.cardBorder,
                     },
                   ]}
                 >
-                  <Text style={[styles.sectionTitle, { color: theme.title }]}>
-                    Insights
-                  </Text>
-                  <Text
-                    style={[styles.sectionSubtitle, { color: theme.faint }]}
+                  <View
+                    style={[
+                      styles.panelHeader,
+                      isCompact && styles.panelHeaderStack,
+                    ]}
                   >
-                    Quick context from your current expense activity.
-                  </Text>
+                    <View>
+                      <Text
+                        style={[styles.sectionTitle, { color: theme.title }]}
+                      >
+                        Overview
+                      </Text>
+                      <Text
+                        style={[styles.sectionSubtitle, { color: theme.faint }]}
+                      >
+                        Monthly totals and budget status with{" "}
+                        {dateRangeLabel.toLowerCase()} activity in view.
+                      </Text>
+                    </View>
+                  </View>
 
-                  {isExpensesLoading ? (
-                    <>
-                      {Array.from({ length: 3 }).map((_, index) => (
+                  <View
+                    style={[
+                      styles.statsGrid,
+                      isCompact && styles.statsGridCompact,
+                    ]}
+                  >
+                    {isExpensesLoading || !isPreferencesReady ? (
+                      <>
+                        {Array.from({ length: 3 }).map((_, index) => (
+                          <View
+                            key={`stats-skeleton-${index}`}
+                            style={[
+                              styles.statsSkeletonCard,
+                              {
+                                backgroundColor: theme.mutedSurface,
+                                borderColor: theme.cardBorder,
+                              },
+                            ]}
+                          >
+                            {renderSkeletonCard(12, "42%")}
+                            {renderSkeletonCard(36, "78%")}
+                            {renderSkeletonCard(12, "58%")}
+                          </View>
+                        ))}
+                      </>
+                    ) : (
+                      <>
+                        <StatsCard
+                          title="Last Month"
+                          amount={stats.lastMonth}
+                          type="expense"
+                          period="month"
+                          mode={themeMode}
+                        />
+                        <StatsCard
+                          title="This Month"
+                          amount={stats.thisMonth}
+                          type="expense"
+                          period="month"
+                          mode={themeMode}
+                        />
+                        <StatsCard
+                          title="Total Expenses"
+                          amount={stats.total}
+                          type="expense"
+                          period="total"
+                          mode={themeMode}
+                        />
+                      </>
+                    )}
+                  </View>
+
+                  <View
+                    style={[
+                      styles.budgetShell,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.budgetHeader,
+                        isCompact && styles.budgetHeaderStack,
+                      ]}
+                    >
+                      <View style={styles.budgetBlock}>
+                        <Text
+                          style={[styles.budgetLabel, { color: theme.muted }]}
+                        >
+                          Monthly budget
+                        </Text>
+                        <TextInput
+                          style={[
+                            styles.budgetInput,
+                            {
+                              backgroundColor: theme.cardBackground,
+                              borderColor: theme.cardBorder,
+                              color: theme.title,
+                            },
+                          ]}
+                          value={String(monthlyBudget)}
+                          onChangeText={(value) =>
+                            setMonthlyBudget(
+                              Number.parseFloat(
+                                value.replace(/[^0-9.]/g, ""),
+                              ) || 0,
+                            )
+                          }
+                          keyboardType="numeric"
+                        />
+                      </View>
+                      <View style={styles.budgetSummary}>
+                        <Text
+                          style={[styles.budgetLabel, { color: theme.muted }]}
+                        >
+                          Spent so far
+                        </Text>
+                        <Text
+                          style={[styles.budgetValue, { color: theme.title }]}
+                        >
+                          {formatAmount(stats.thisMonth)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.budgetTrack}>
+                      <LinearGradient
+                        colors={["#22D3EE", "#3B82F6", "#8B5CF6"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={[
+                          styles.budgetFill,
+                          { width: `${Math.max(budgetUsage * 100, 4)}%` },
+                        ]}
+                      />
+                    </View>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.budgetAlertCard,
+                      budgetAlert.tone === "danger"
+                        ? styles.budgetAlertDanger
+                        : budgetAlert.tone === "warning"
+                          ? styles.budgetAlertWarning
+                          : budgetAlert.tone === "success"
+                            ? styles.budgetAlertSuccess
+                            : styles.budgetAlertNeutral,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                  >
+                    <View style={styles.budgetAlertHeader}>
+                      <Ionicons
+                        name={
+                          budgetAlert.tone === "danger"
+                            ? "warning-outline"
+                            : budgetAlert.tone === "warning"
+                              ? "alert-circle-outline"
+                              : "shield-checkmark-outline"
+                        }
+                        size={18}
+                        color={
+                          budgetAlert.tone === "danger"
+                            ? "#F87171"
+                            : budgetAlert.tone === "warning"
+                              ? "#FBBF24"
+                              : "#34D399"
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.budgetAlertTitle,
+                          { color: theme.title },
+                        ]}
+                      >
+                        {budgetAlert.title}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[styles.budgetAlertText, { color: theme.muted }]}
+                    >
+                      {budgetAlert.message}
+                    </Text>
+                  </View>
+                </View>
+
+                <View
+                  style={[
+                    styles.workspaceRow,
+                    isCompact && styles.workspaceColumn,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.panel,
+                      styles.recentPanel,
+                      isCompact && styles.fullWidthPanel,
+                      {
+                        backgroundColor: theme.cardBackground,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.panelHeader,
+                        isCompact && styles.panelHeaderStack,
+                      ]}
+                    >
+                      <View>
+                        <Text
+                          style={[
+                            styles.sectionTitleLarge,
+                            { color: theme.title },
+                          ]}
+                        >
+                          Recent Expenses
+                        </Text>
+                        <Text
+                          style={[
+                            styles.sectionSubtitle,
+                            { color: theme.faint },
+                          ]}
+                        >
+                          Search and review your latest entries.
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.clearButton}
+                        onPress={confirmClearAll}
+                      >
+                        <Text style={styles.clearButtonText}>Clear all</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <TextInput
+                      style={[
+                        styles.searchInput,
+                        {
+                          backgroundColor: theme.mutedSurface,
+                          borderColor: theme.cardBorder,
+                          color: theme.title,
+                        },
+                      ]}
+                      placeholder="Search expenses, categories, or notes"
+                      placeholderTextColor={theme.faint}
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                    />
+
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.categoryRow}
+                    >
+                      {categories.map((category) => (
+                        <TouchableOpacity
+                          key={category}
+                          style={[
+                            styles.categoryChip,
+                            styles.categoryChipFixed,
+                            {
+                              backgroundColor: theme.mutedSurface,
+                              borderColor: theme.cardBorder,
+                            },
+                            selectedCategory === category &&
+                              styles.categoryChipActive,
+                          ]}
+                          onPress={() =>
+                            setSelectedCategory(
+                              category as typeof selectedCategory,
+                            )
+                          }
+                        >
+                          <Text
+                            style={[
+                              styles.categoryChipText,
+                              { color: theme.faint },
+                              selectedCategory === category &&
+                                styles.categoryChipTextActive,
+                            ]}
+                          >
+                            {category}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+
+                    {isExpensesLoading ? (
+                      renderRecentSkeletons()
+                    ) : (
+                      <ExpenseList
+                        expenses={displayedExpenses}
+                        onDelete={confirmDeleteExpense}
+                        onEdit={startEditingExpense}
+                        mode={themeMode}
+                      />
+                    )}
+
+                    {visibleExpenses.length > 5 && !searchQuery.trim() ? (
+                      <TouchableOpacity
+                        style={styles.showAllButton}
+                        onPress={() => setShowAllExpenses((value) => !value)}
+                      >
+                        <Text
+                          style={[
+                            styles.showAllButtonText,
+                            { color: theme.accent },
+                          ]}
+                        >
+                          {showAllExpenses
+                            ? "Show less"
+                            : `View all ${visibleExpenses.length} expenses`}
+                        </Text>
+                        <Ionicons
+                          name={showAllExpenses ? "chevron-up" : "chevron-down"}
+                          size={16}
+                          color="#7DD3FC"
+                        />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+
+                  <View
+                    style={[
+                      styles.panel,
+                      styles.signalPanel,
+                      isCompact && styles.fullWidthPanel,
+                      {
+                        backgroundColor: theme.cardBackground,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.sectionTitle, { color: theme.title }]}>
+                      Insights
+                    </Text>
+                    <Text
+                      style={[styles.sectionSubtitle, { color: theme.faint }]}
+                    >
+                      Quick context from your current expense activity.
+                    </Text>
+
+                    {isExpensesLoading ? (
+                      <>
+                        {Array.from({ length: 3 }).map((_, index) => (
+                          <View
+                            key={`insight-skeleton-${index}`}
+                            style={[
+                              styles.signalCard,
+                              {
+                                backgroundColor: theme.mutedSurface,
+                                borderColor: theme.cardBorder,
+                              },
+                            ]}
+                          >
+                            {renderSkeletonCard(12, "34%")}
+                            {renderSkeletonCard(22, "62%")}
+                            {renderSkeletonCard(12, "46%")}
+                          </View>
+                        ))}
+                      </>
+                    ) : (
+                      <>
                         <View
-                          key={`insight-skeleton-${index}`}
                           style={[
                             styles.signalCard,
                             {
@@ -1820,166 +2011,224 @@ export default function DashboardScreen({
                             },
                           ]}
                         >
-                          {renderSkeletonCard(12, "34%")}
-                          {renderSkeletonCard(22, "62%")}
-                          {renderSkeletonCard(12, "46%")}
+                          <Text
+                            style={[styles.signalLabel, { color: theme.faint }]}
+                          >
+                            Top category
+                          </Text>
+                          <Text
+                            style={[styles.signalValue, { color: theme.title }]}
+                          >
+                            {topCategory ? topCategory[0] : "No data yet"}
+                          </Text>
+                          <Text
+                            style={[styles.signalMeta, { color: theme.muted }]}
+                          >
+                            {topCategory
+                              ? formatAmount(topCategory[1])
+                              : "Add expenses"}
+                          </Text>
                         </View>
-                      ))}
-                    </>
-                  ) : (
-                    <>
-                      <View
-                        style={[
-                          styles.signalCard,
-                          {
-                            backgroundColor: theme.mutedSurface,
-                            borderColor: theme.cardBorder,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.signalLabel, { color: theme.faint }]}
-                        >
-                          Top category
-                        </Text>
-                        <Text
-                          style={[styles.signalValue, { color: theme.title }]}
-                        >
-                          {topCategory ? topCategory[0] : "No data yet"}
-                        </Text>
-                        <Text
-                          style={[styles.signalMeta, { color: theme.muted }]}
-                        >
-                          {topCategory
-                            ? formatAmount(topCategory[1])
-                            : "Add expenses"}
-                        </Text>
-                      </View>
 
-                      <View
-                        style={[
-                          styles.signalCard,
-                          {
-                            backgroundColor: theme.mutedSurface,
-                            borderColor: theme.cardBorder,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.signalLabel, { color: theme.faint }]}
+                        <View
+                          style={[
+                            styles.signalCard,
+                            {
+                              backgroundColor: theme.mutedSurface,
+                              borderColor: theme.cardBorder,
+                            },
+                          ]}
                         >
-                          Receipts saved
-                        </Text>
-                        <Text
-                          style={[styles.signalValue, { color: theme.title }]}
-                        >
-                          {
-                            rangeFilteredExpenses.filter(
-                              (expense) => expense.imageUrl,
-                            ).length
-                          }
-                        </Text>
-                        <Text
-                          style={[styles.signalMeta, { color: theme.muted }]}
-                        >
-                          Entries with photo proof attached in{" "}
-                          {dateRangeLabel.toLowerCase()}
-                        </Text>
-                      </View>
+                          <Text
+                            style={[styles.signalLabel, { color: theme.faint }]}
+                          >
+                            Receipts saved
+                          </Text>
+                          <Text
+                            style={[styles.signalValue, { color: theme.title }]}
+                          >
+                            {
+                              rangeFilteredExpenses.filter(
+                                (expense) => expense.imageUrl,
+                              ).length
+                            }
+                          </Text>
+                          <Text
+                            style={[styles.signalMeta, { color: theme.muted }]}
+                          >
+                            Entries with photo proof attached in{" "}
+                            {dateRangeLabel.toLowerCase()}
+                          </Text>
+                        </View>
 
-                      <View
-                        style={[
-                          styles.signalCard,
-                          {
-                            backgroundColor: theme.mutedSurface,
-                            borderColor: theme.cardBorder,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.signalLabel, { color: theme.faint }]}
+                        <View
+                          style={[
+                            styles.signalCard,
+                            {
+                              backgroundColor: theme.mutedSurface,
+                              borderColor: theme.cardBorder,
+                            },
+                          ]}
                         >
-                          Member since
-                        </Text>
-                        <Text
-                          style={[styles.signalValue, { color: theme.title }]}
-                        >
-                          {user.createdAt
-                            ? new Date(user.createdAt).toLocaleDateString()
-                            : "Today"}
-                        </Text>
-                        <Text
-                          style={[styles.signalMeta, { color: theme.muted }]}
-                        >
-                          {user.email}
-                        </Text>
-                      </View>
-                    </>
-                  )}
+                          <Text
+                            style={[styles.signalLabel, { color: theme.faint }]}
+                          >
+                            Member since
+                          </Text>
+                          <Text
+                            style={[styles.signalValue, { color: theme.title }]}
+                          >
+                            {user.createdAt
+                              ? new Date(user.createdAt).toLocaleDateString()
+                              : "Today"}
+                          </Text>
+                          <Text
+                            style={[styles.signalMeta, { color: theme.muted }]}
+                          >
+                            {user.email}
+                          </Text>
+                        </View>
+                      </>
+                    )}
+                  </View>
                 </View>
-              </View>
-            </>
-          ) : null}
+              </>
+            ) : null}
 
-          {activeTab === "stats" ? (
-            <View
-              style={[
-                styles.panel,
-                {
-                  backgroundColor: theme.cardBackground,
-                  borderColor: theme.cardBorder,
-                },
-              ]}
-            >
+            {activeTab === "stats" ? (
               <View
                 style={[
-                  styles.panelHeader,
-                  isCompact && styles.panelHeaderStack,
+                  styles.panel,
+                  {
+                    backgroundColor: theme.cardBackground,
+                    borderColor: theme.cardBorder,
+                  },
                 ]}
               >
-                <View>
-                  <Text
-                    style={[styles.sectionTitleLarge, { color: theme.title }]}
-                  >
-                    Analytics
-                  </Text>
-                  <Text
-                    style={[styles.sectionSubtitle, { color: theme.faint }]}
-                  >
-                    Weekly spending trend and export tools for{" "}
-                    {dateRangeLabel.toLowerCase()} activity.
-                  </Text>
-                </View>
-                <TouchableOpacity
+                <View
                   style={[
-                    styles.exportButton,
-                    {
-                      backgroundColor: theme.mutedSurface,
-                      borderColor: theme.cardBorder,
-                    },
+                    styles.panelHeader,
+                    isCompact && styles.panelHeaderStack,
                   ]}
-                  onPress={() => setShowExportOptions(true)}
-                  disabled={isExporting}
                 >
-                  <Ionicons
-                    name="download-outline"
-                    size={16}
-                    color={theme.accent}
-                  />
-                  <Text
-                    style={[styles.exportButtonText, { color: theme.title }]}
+                  <View>
+                    <Text
+                      style={[styles.sectionTitleLarge, { color: theme.title }]}
+                    >
+                      Analytics
+                    </Text>
+                    <Text
+                      style={[styles.sectionSubtitle, { color: theme.faint }]}
+                    >
+                      Weekly spending trend and export tools for{" "}
+                      {dateRangeLabel.toLowerCase()} activity.
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.exportButton,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                    onPress={() => setShowExportOptions(true)}
+                    disabled={isExporting}
                   >
-                    {isExporting ? "Exporting..." : "Export"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                    <Ionicons
+                      name="download-outline"
+                      size={16}
+                      color={theme.accent}
+                    />
+                    <Text
+                      style={[styles.exportButtonText, { color: theme.title }]}
+                    >
+                      {isExporting ? "Exporting..." : "Export"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
-              {isExpensesLoading ? (
-                <>
-                  <View style={styles.statsSummaryRow}>
-                    {Array.from({ length: 4 }).map((_, index) => (
+                {isExpensesLoading ? (
+                  <>
+                    <View style={styles.statsSummaryRow}>
+                      {Array.from({ length: 4 }).map((_, index) => (
+                        <View
+                          key={`analytics-skeleton-${index}`}
+                          style={[
+                            styles.statsSummaryCard,
+                            {
+                              backgroundColor: theme.mutedSurface,
+                              borderColor: theme.cardBorder,
+                            },
+                          ]}
+                        >
+                          {renderSkeletonCard(12, "44%")}
+                          {renderSkeletonCard(26, "64%")}
+                          {renderSkeletonCard(12, "52%")}
+                        </View>
+                      ))}
+                    </View>
+                    <View
+                      style={[
+                        styles.trendHighlightCard,
+                        {
+                          backgroundColor: theme.mutedSurface,
+                          borderColor: theme.cardBorder,
+                        },
+                      ]}
+                    >
+                      {renderSkeletonCard(16, "38%")}
+                      {renderSkeletonCard(12, "88%")}
+                      {renderSkeletonCard(12, "76%")}
+                    </View>
+                    <View
+                      style={[
+                        styles.graphShell,
+                        {
+                          backgroundColor: theme.mutedSurface,
+                          borderColor: theme.cardBorder,
+                          minHeight: 260,
+                        },
+                      ]}
+                    >
+                      {Array.from({ length: isCompact ? 4 : 6 }).map(
+                        (_, index) => (
+                          <View
+                            key={`graph-skeleton-${index}`}
+                            style={styles.graphColumn}
+                          >
+                            {renderSkeletonCard(12, 60)}
+                            <View
+                              style={[
+                                styles.graphBarShell,
+                                {
+                                  height: 160,
+                                },
+                              ]}
+                            >
+                              <View
+                                style={[
+                                  styles.graphBar,
+                                  {
+                                    height: 50 + index * 18,
+                                    backgroundColor:
+                                      themeMode === "dark"
+                                        ? "rgba(125, 211, 252, 0.4)"
+                                        : "rgba(2, 132, 199, 0.28)",
+                                  },
+                                ]}
+                              />
+                            </View>
+                            {renderSkeletonCard(12, 56)}
+                          </View>
+                        ),
+                      )}
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.statsSummaryRow}>
                       <View
-                        key={`analytics-skeleton-${index}`}
                         style={[
                           styles.statsSummaryCard,
                           {
@@ -1988,819 +2237,906 @@ export default function DashboardScreen({
                           },
                         ]}
                       >
-                        {renderSkeletonCard(12, "44%")}
-                        {renderSkeletonCard(26, "64%")}
-                        {renderSkeletonCard(12, "52%")}
-                      </View>
-                    ))}
-                  </View>
-                  <View
-                    style={[
-                      styles.trendHighlightCard,
-                      {
-                        backgroundColor: theme.mutedSurface,
-                        borderColor: theme.cardBorder,
-                      },
-                    ]}
-                  >
-                    {renderSkeletonCard(16, "38%")}
-                    {renderSkeletonCard(12, "88%")}
-                    {renderSkeletonCard(12, "76%")}
-                  </View>
-                  <View
-                    style={[
-                      styles.graphShell,
-                      {
-                        backgroundColor: theme.mutedSurface,
-                        borderColor: theme.cardBorder,
-                        minHeight: 260,
-                      },
-                    ]}
-                  >
-                    {Array.from({ length: isCompact ? 4 : 6 }).map(
-                      (_, index) => (
-                        <View
-                          key={`graph-skeleton-${index}`}
-                          style={styles.graphColumn}
+                        <Text
+                          style={[
+                            styles.statsSummaryLabel,
+                            { color: theme.muted },
+                          ]}
                         >
-                          {renderSkeletonCard(12, 60)}
-                          <View
-                            style={[
-                              styles.graphBarShell,
-                              {
-                                height: 160,
-                              },
-                            ]}
-                          >
+                          This month
+                        </Text>
+                        <Text
+                          style={[
+                            styles.statsSummaryValue,
+                            { color: theme.title },
+                          ]}
+                        >
+                          {formatAmount(stats.thisMonth)}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.statsSummaryCard,
+                          {
+                            backgroundColor: theme.mutedSurface,
+                            borderColor: theme.cardBorder,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statsSummaryLabel,
+                            { color: theme.muted },
+                          ]}
+                        >
+                          Last month
+                        </Text>
+                        <Text
+                          style={[
+                            styles.statsSummaryValue,
+                            { color: theme.title },
+                          ]}
+                        >
+                          {formatAmount(stats.lastMonth)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.statsSummaryRow}>
+                      <View
+                        style={[
+                          styles.statsSummaryCard,
+                          {
+                            backgroundColor: theme.mutedSurface,
+                            borderColor: theme.cardBorder,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statsSummaryLabel,
+                            { color: theme.muted },
+                          ]}
+                        >
+                          This week
+                        </Text>
+                        <Text
+                          style={[
+                            styles.statsSummaryValue,
+                            { color: theme.title },
+                          ]}
+                        >
+                          {formatAmount(trendStats.currentWeekTotal)}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.statsSummaryCard,
+                          {
+                            backgroundColor: theme.mutedSurface,
+                            borderColor: theme.cardBorder,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statsSummaryLabel,
+                            { color: theme.muted },
+                          ]}
+                        >
+                          Week before
+                        </Text>
+                        <Text
+                          style={[
+                            styles.statsSummaryValue,
+                            { color: theme.title },
+                          ]}
+                        >
+                          {formatAmount(trendStats.lastWeekTotal)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.statsSummaryRow}>
+                      <View
+                        style={[
+                          styles.statsSummaryCard,
+                          {
+                            backgroundColor: theme.mutedSurface,
+                            borderColor: theme.cardBorder,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statsSummaryLabel,
+                            { color: theme.muted },
+                          ]}
+                        >
+                          Average expense
+                        </Text>
+                        <Text
+                          style={[
+                            styles.statsSummaryValue,
+                            { color: theme.title },
+                          ]}
+                        >
+                          {formatAmount(trendStats.averageExpense)}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.statsSummaryCard,
+                          {
+                            backgroundColor: theme.mutedSurface,
+                            borderColor: theme.cardBorder,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statsSummaryLabel,
+                            { color: theme.muted },
+                          ]}
+                        >
+                          Monthly trend
+                        </Text>
+                        <Text
+                          style={[
+                            styles.statsSummaryValue,
+                            { color: theme.title },
+                          ]}
+                        >
+                          {trendStats.monthlyChange >= 0 ? "+" : ""}
+                          {trendStats.monthlyChange.toFixed(0)}%
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.trendHighlightCard,
+                        {
+                          backgroundColor: theme.mutedSurface,
+                          borderColor: theme.cardBorder,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.sectionTitle, { color: theme.title }]}
+                      >
+                        Weekly Spending Summary
+                      </Text>
+                      <Text
+                        style={[styles.sectionSubtitle, { color: theme.faint }]}
+                      >
+                        Highest spend week is{" "}
+                        {weeklyInsight.highestWeek?.[0] || "N/A"} at{" "}
+                        {formatAmount(weeklyInsight.highestWeek?.[1] || 0)}.
+                        Average active-week spend is{" "}
+                        {formatAmount(weeklyInsight.averageWeeklySpend)} across{" "}
+                        {weeklyInsight.activeWeeks} active weeks this month.
+                      </Text>
+                    </View>
+                  </>
+                )}
+
+                {!isExpensesLoading &&
+                graphEntries.every(([, total]) => total === 0) ? (
+                  <Text style={styles.emptyGraphText}>
+                    No spending recorded for the current month yet. Add a new
+                    expense to start the weekly trend chart.
+                  </Text>
+                ) : !isExpensesLoading ? (
+                  <ScrollView
+                    horizontal={isCompact}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={
+                      isCompact ? styles.graphScrollContent : undefined
+                    }
+                  >
+                    <View
+                      style={[
+                        styles.graphShell,
+                        isCompact && styles.graphShellCompact,
+                        {
+                          backgroundColor: theme.mutedSurface,
+                          borderColor: theme.cardBorder,
+                        },
+                      ]}
+                    >
+                      <View style={styles.graphHeader}>
+                        <Text
+                          style={[styles.graphTitle, { color: theme.title }]}
+                        >
+                          Weekly Spending Trend
+                        </Text>
+                        <Text
+                          style={[styles.graphSubtitle, { color: theme.faint }]}
+                        >
+                          Current Month
+                        </Text>
+                      </View>
+
+                      <View style={styles.graphBody}>
+                        <View style={styles.graphYAxis}>
+                          {[1, 0.75, 0.5, 0.25, 0].map((step) => {
+                            const maxValue = Math.max(
+                              ...graphEntries.map(([, value]) => value),
+                              1,
+                            );
+                            const labelValue =
+                              step === 0
+                                ? 0
+                                : Math.ceil((maxValue * step) / 100) * 100;
+                            return (
+                              <Text
+                                key={`axis-${step}`}
+                                style={[
+                                  styles.graphAxisLabel,
+                                  { color: theme.faint },
+                                ]}
+                              >
+                                {labelValue === 0
+                                  ? "0"
+                                  : formatChartAmount(labelValue)}
+                              </Text>
+                            );
+                          })}
+                        </View>
+
+                        <View style={styles.graphPlotArea}>
+                          {[1, 0.75, 0.5, 0.25, 0].map((step, lineIndex) => (
                             <View
+                              key={`line-${lineIndex}`}
                               style={[
-                                styles.graphBar,
+                                styles.graphGridLine,
                                 {
-                                  height: 50 + index * 18,
-                                  backgroundColor:
-                                    themeMode === "dark"
-                                      ? "rgba(125, 211, 252, 0.4)"
-                                      : "rgba(2, 132, 199, 0.28)",
+                                  top: `${(1 - step) * 100}%`,
+                                  borderColor: theme.cardBorder,
                                 },
                               ]}
                             />
+                          ))}
+
+                          <View
+                            style={[
+                              styles.graphBenchmarkLine,
+                              {
+                                top: `${(1 - 0.5) * 100}%`,
+                                borderColor: "rgba(226, 232, 240, 0.55)",
+                              },
+                            ]}
+                          />
+
+                          <View style={styles.graphColumnsRow}>
+                            {graphEntries.map(([dayLabel, total], index) => {
+                              const max = Math.max(
+                                ...graphEntries.map(([, value]) => value),
+                                1,
+                              );
+                              const height = Math.max(
+                                (total / max) * 210,
+                                total > 0 ? 32 : 12,
+                              );
+                              const gradients: Record<number, string[]> = {
+                                0: ["#2F80ED", "#3B82F6"],
+                                1: ["#22C55E", "#34D399"],
+                                2: ["#F59E0B", "#FB923C"],
+                                3: ["#38BDF8", "#22D3EE"],
+                              };
+                              const barColors = gradients[index] || [
+                                "#38BDF8",
+                                "#818CF8",
+                              ];
+
+                              return (
+                                <View
+                                  key={dayLabel}
+                                  style={styles.graphColumnCard}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.graphValue,
+                                      { color: theme.title },
+                                    ]}
+                                  >
+                                    {formatChartAmount(total)}
+                                  </Text>
+                                  <View style={styles.graphBarShell}>
+                                    <LinearGradient
+                                      colors={
+                                        barColors as [
+                                          string,
+                                          string,
+                                          ...string[],
+                                        ]
+                                      }
+                                      start={{ x: 0, y: 0 }}
+                                      end={{ x: 0, y: 1 }}
+                                      style={[styles.graphBar, { height }]}
+                                    />
+                                  </View>
+                                  <Text
+                                    style={[
+                                      styles.graphLabel,
+                                      { color: theme.title },
+                                    ]}
+                                  >
+                                    {dayLabel}
+                                  </Text>
+                                </View>
+                              );
+                            })}
                           </View>
-                          {renderSkeletonCard(12, 56)}
                         </View>
-                      ),
-                    )}
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={styles.statsSummaryRow}>
-                    <View
-                      style={[
-                        styles.statsSummaryCard,
-                        {
-                          backgroundColor: theme.mutedSurface,
-                          borderColor: theme.cardBorder,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statsSummaryLabel,
-                          { color: theme.muted },
-                        ]}
-                      >
-                        This month
-                      </Text>
-                      <Text
-                        style={[
-                          styles.statsSummaryValue,
-                          { color: theme.title },
-                        ]}
-                      >
-                        {formatAmount(stats.thisMonth)}
-                      </Text>
+                      </View>
                     </View>
-                    <View
-                      style={[
-                        styles.statsSummaryCard,
-                        {
-                          backgroundColor: theme.mutedSurface,
-                          borderColor: theme.cardBorder,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statsSummaryLabel,
-                          { color: theme.muted },
-                        ]}
-                      >
-                        Last month
-                      </Text>
-                      <Text
-                        style={[
-                          styles.statsSummaryValue,
-                          { color: theme.title },
-                        ]}
-                      >
-                        {formatAmount(stats.lastMonth)}
-                      </Text>
-                    </View>
-                  </View>
+                  </ScrollView>
+                ) : null}
+              </View>
+            ) : null}
 
-                  <View style={styles.statsSummaryRow}>
-                    <View
-                      style={[
-                        styles.statsSummaryCard,
-                        {
-                          backgroundColor: theme.mutedSurface,
-                          borderColor: theme.cardBorder,
-                        },
-                      ]}
+            {activeTab === "gallery" ? (
+              <View
+                style={[
+                  styles.panel,
+                  {
+                    backgroundColor: theme.cardBackground,
+                    borderColor: theme.cardBorder,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.panelHeader,
+                    isCompact && styles.panelHeaderStack,
+                  ]}
+                >
+                  <View>
+                    <Text
+                      style={[styles.sectionTitleLarge, { color: theme.title }]}
                     >
-                      <Text
-                        style={[
-                          styles.statsSummaryLabel,
-                          { color: theme.muted },
-                        ]}
-                      >
-                        This week
-                      </Text>
-                      <Text
-                        style={[
-                          styles.statsSummaryValue,
-                          { color: theme.title },
-                        ]}
-                      >
-                        {formatAmount(trendStats.currentWeekTotal)}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.statsSummaryCard,
-                        {
-                          backgroundColor: theme.mutedSurface,
-                          borderColor: theme.cardBorder,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statsSummaryLabel,
-                          { color: theme.muted },
-                        ]}
-                      >
-                        Week before
-                      </Text>
-                      <Text
-                        style={[
-                          styles.statsSummaryValue,
-                          { color: theme.title },
-                        ]}
-                      >
-                        {formatAmount(trendStats.lastWeekTotal)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.statsSummaryRow}>
-                    <View
-                      style={[
-                        styles.statsSummaryCard,
-                        {
-                          backgroundColor: theme.mutedSurface,
-                          borderColor: theme.cardBorder,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statsSummaryLabel,
-                          { color: theme.muted },
-                        ]}
-                      >
-                        Average expense
-                      </Text>
-                      <Text
-                        style={[
-                          styles.statsSummaryValue,
-                          { color: theme.title },
-                        ]}
-                      >
-                        {formatAmount(trendStats.averageExpense)}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.statsSummaryCard,
-                        {
-                          backgroundColor: theme.mutedSurface,
-                          borderColor: theme.cardBorder,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statsSummaryLabel,
-                          { color: theme.muted },
-                        ]}
-                      >
-                        Monthly trend
-                      </Text>
-                      <Text
-                        style={[
-                          styles.statsSummaryValue,
-                          { color: theme.title },
-                        ]}
-                      >
-                        {trendStats.monthlyChange >= 0 ? "+" : ""}
-                        {trendStats.monthlyChange.toFixed(0)}%
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.trendHighlightCard,
-                      {
-                        backgroundColor: theme.mutedSurface,
-                        borderColor: theme.cardBorder,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.sectionTitle, { color: theme.title }]}>
-                      Weekly Spending Summary
+                      Receipt Gallery
                     </Text>
                     <Text
                       style={[styles.sectionSubtitle, { color: theme.faint }]}
                     >
-                      Highest spend week is{" "}
-                      {weeklyInsight.highestWeek?.[0] || "N/A"} at{" "}
-                      {formatAmount(weeklyInsight.highestWeek?.[1] || 0)}.
-                      Average active-week spend is{" "}
-                      {formatAmount(weeklyInsight.averageWeeklySpend)} across{" "}
-                      {weeklyInsight.activeWeeks} active weeks this month.
+                      Review every uploaded proof in one place for{" "}
+                      {dateRangeLabel.toLowerCase()} activity.
                     </Text>
                   </View>
-                </>
-              )}
-
-              {!isExpensesLoading &&
-              graphEntries.every(([, total]) => total === 0) ? (
-                <Text style={styles.emptyGraphText}>
-                  No spending recorded for the current month yet. Add a new
-                  expense to start the weekly trend chart.
-                </Text>
-              ) : !isExpensesLoading ? (
-                <ScrollView
-                  horizontal={isCompact}
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={
-                    isCompact ? styles.graphScrollContent : undefined
-                  }
-                >
                   <View
                     style={[
-                      styles.graphShell,
-                      isCompact && styles.graphShellCompact,
+                      styles.galleryCountBadge,
                       {
                         backgroundColor: theme.mutedSurface,
                         borderColor: theme.cardBorder,
                       },
                     ]}
                   >
-                    <View style={styles.graphHeader}>
-                      <Text style={[styles.graphTitle, { color: theme.title }]}>
-                        Weekly Spending Trend
-                      </Text>
-                      <Text
-                        style={[styles.graphSubtitle, { color: theme.faint }]}
-                      >
-                        Current Month
-                      </Text>
-                    </View>
+                    <Text
+                      style={[styles.galleryCountText, { color: theme.title }]}
+                    >
+                      {galleryExpenses.length} saved
+                    </Text>
+                  </View>
+                </View>
 
-                    <View style={styles.graphBody}>
-                      <View style={styles.graphYAxis}>
-                        {[1, 0.75, 0.5, 0.25, 0].map((step) => {
-                          const maxValue = Math.max(
-                            ...graphEntries.map(([, value]) => value),
-                            1,
-                          );
-                          const labelValue =
-                            step === 0
-                              ? 0
-                              : Math.ceil((maxValue * step) / 100) * 100;
-                          return (
-                            <Text
-                              key={`axis-${step}`}
-                              style={[
-                                styles.graphAxisLabel,
-                                { color: theme.faint },
-                              ]}
-                            >
-                              {labelValue === 0
-                                ? "0"
-                                : formatChartAmount(labelValue)}
-                            </Text>
-                          );
-                        })}
-                      </View>
-
-                      <View style={styles.graphPlotArea}>
-                        {[1, 0.75, 0.5, 0.25, 0].map((step, lineIndex) => (
-                          <View
-                            key={`line-${lineIndex}`}
-                            style={[
-                              styles.graphGridLine,
-                              {
-                                top: `${(1 - step) * 100}%`,
-                                borderColor: theme.cardBorder,
-                              },
-                            ]}
-                          />
-                        ))}
-
+                {isExpensesLoading ? (
+                  <View style={styles.galleryGrid}>
+                    {Array.from({ length: isCompact ? 4 : 6 }).map(
+                      (_, index) => (
                         <View
+                          key={`gallery-skeleton-${index}`}
                           style={[
-                            styles.graphBenchmarkLine,
+                            styles.galleryCard,
+                            isCompact && styles.galleryCardCompact,
                             {
-                              top: `${(1 - 0.5) * 100}%`,
-                              borderColor: "rgba(226, 232, 240, 0.55)",
+                              backgroundColor: theme.mutedSurface,
+                              borderColor: theme.cardBorder,
                             },
                           ]}
-                        />
-
-                        <View style={styles.graphColumnsRow}>
-                          {graphEntries.map(([dayLabel, total], index) => {
-                            const max = Math.max(
-                              ...graphEntries.map(([, value]) => value),
-                              1,
-                            );
-                            const height = Math.max(
-                              (total / max) * 210,
-                              total > 0 ? 32 : 12,
-                            );
-                            const gradients: Record<number, string[]> = {
-                              0: ["#2F80ED", "#3B82F6"],
-                              1: ["#22C55E", "#34D399"],
-                              2: ["#F59E0B", "#FB923C"],
-                              3: ["#38BDF8", "#22D3EE"],
-                            };
-                            const barColors = gradients[index] || [
-                              "#38BDF8",
-                              "#818CF8",
-                            ];
-
-                            return (
-                              <View
-                                key={dayLabel}
-                                style={styles.graphColumnCard}
-                              >
-                                <Text
-                                  style={[
-                                    styles.graphValue,
-                                    { color: theme.title },
-                                  ]}
-                                >
-                                  {formatChartAmount(total)}
-                                </Text>
-                                <View style={styles.graphBarShell}>
-                                  <LinearGradient
-                                    colors={
-                                      barColors as [string, string, ...string[]]
-                                    }
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 0, y: 1 }}
-                                    style={[styles.graphBar, { height }]}
-                                  />
-                                </View>
-                                <Text
-                                  style={[
-                                    styles.graphLabel,
-                                    { color: theme.title },
-                                  ]}
-                                >
-                                  {dayLabel}
-                                </Text>
-                              </View>
-                            );
-                          })}
+                        >
+                          {renderSkeletonCard(150, "100%")}
+                          {renderSkeletonCard(14, "76%")}
+                          {renderSkeletonCard(12, "58%")}
                         </View>
-                      </View>
-                    </View>
+                      ),
+                    )}
                   </View>
-                </ScrollView>
-              ) : null}
-            </View>
-          ) : null}
+                ) : galleryExpenses.length === 0 ? (
+                  <Text style={[styles.emptyGraphText, { color: theme.faint }]}>
+                    No receipt images yet. Add one when creating or editing an
+                    expense.
+                  </Text>
+                ) : (
+                  <View style={styles.galleryGrid}>
+                    {galleryExpenses.map((expense) => (
+                      <TouchableOpacity
+                        key={expense.id}
+                        style={[
+                          styles.galleryCard,
+                          isCompact && styles.galleryCardCompact,
+                          {
+                            backgroundColor: theme.mutedSurface,
+                            borderColor: theme.cardBorder,
+                          },
+                        ]}
+                        onPress={() => setSelectedReceipt(expense)}
+                        activeOpacity={0.86}
+                      >
+                        <Image
+                          source={{ uri: expense.imageUrl! }}
+                          style={styles.galleryImage}
+                          contentFit="cover"
+                        />
+                        <Text
+                          style={[styles.galleryTitle, { color: theme.title }]}
+                          numberOfLines={1}
+                        >
+                          {expense.description}
+                        </Text>
+                        <Text
+                          style={[styles.galleryMeta, { color: theme.faint }]}
+                          numberOfLines={1}
+                        >
+                          {formatAmount(expense.amount)} ·{" "}
+                          {expense.category || "Uncategorized"}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ) : null}
 
-          {activeTab === "gallery" ? (
-            <View
-              style={[
-                styles.panel,
-                {
-                  backgroundColor: theme.cardBackground,
-                  borderColor: theme.cardBorder,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.panelHeader,
-                  isCompact && styles.panelHeaderStack,
-                ]}
-              >
-                <View>
-                  <Text
-                    style={[styles.sectionTitleLarge, { color: theme.title }]}
-                  >
-                    Receipt Gallery
+            {activeTab === "profile" ? (
+              <>
+                <View
+                  style={[
+                    styles.panel,
+                    {
+                      backgroundColor: theme.cardBackground,
+                      borderColor: theme.cardBorder,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.sectionTitle, { color: theme.title }]}>
+                    Profile
                   </Text>
                   <Text
                     style={[styles.sectionSubtitle, { color: theme.faint }]}
                   >
-                    Review every uploaded proof in one place for{" "}
-                    {dateRangeLabel.toLowerCase()} activity.
+                    Manage your account, photo, and security details.
                   </Text>
-                </View>
-                <View
-                  style={[
-                    styles.galleryCountBadge,
-                    {
-                      backgroundColor: theme.mutedSurface,
-                      borderColor: theme.cardBorder,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[styles.galleryCountText, { color: theme.title }]}
-                  >
-                    {galleryExpenses.length} saved
-                  </Text>
-                </View>
-              </View>
 
-              {isExpensesLoading ? (
-                <View style={styles.galleryGrid}>
-                  {Array.from({ length: isCompact ? 4 : 6 }).map((_, index) => (
-                    <View
-                      key={`gallery-skeleton-${index}`}
-                      style={[
-                        styles.galleryCard,
-                        isCompact && styles.galleryCardCompact,
-                        {
-                          backgroundColor: theme.mutedSurface,
-                          borderColor: theme.cardBorder,
-                        },
-                      ]}
-                    >
-                      {renderSkeletonCard(150, "100%")}
-                      {renderSkeletonCard(14, "76%")}
-                      {renderSkeletonCard(12, "58%")}
-                    </View>
-                  ))}
-                </View>
-              ) : galleryExpenses.length === 0 ? (
-                <Text style={[styles.emptyGraphText, { color: theme.faint }]}>
-                  No receipt images yet. Add one when creating or editing an
-                  expense.
-                </Text>
-              ) : (
-                <View style={styles.galleryGrid}>
-                  {galleryExpenses.map((expense) => (
-                    <TouchableOpacity
-                      key={expense.id}
-                      style={[
-                        styles.galleryCard,
-                        isCompact && styles.galleryCardCompact,
-                        {
-                          backgroundColor: theme.mutedSurface,
-                          borderColor: theme.cardBorder,
-                        },
-                      ]}
-                      onPress={() => setSelectedReceipt(expense)}
-                      activeOpacity={0.86}
-                    >
-                      <Image
-                        source={{ uri: expense.imageUrl! }}
-                        style={styles.galleryImage}
-                        contentFit="cover"
-                      />
-                      <Text
-                        style={[styles.galleryTitle, { color: theme.title }]}
-                        numberOfLines={1}
-                      >
-                        {expense.description}
-                      </Text>
-                      <Text
-                        style={[styles.galleryMeta, { color: theme.faint }]}
-                        numberOfLines={1}
-                      >
-                        {formatAmount(expense.amount)} ·{" "}
-                        {expense.category || "Uncategorized"}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-          ) : null}
-
-          {activeTab === "profile" ? (
-            <>
-              <View
-                style={[
-                  styles.panel,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    borderColor: theme.cardBorder,
-                  },
-                ]}
-              >
-                <Text style={[styles.sectionTitle, { color: theme.title }]}>
-                  Profile
-                </Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
-                  Manage your account, photo, and security details.
-                </Text>
-
-                <View
-                  style={[
-                    styles.profileCard,
-                    {
-                      backgroundColor: theme.mutedSurface,
-                      borderColor: theme.cardBorder,
-                    },
-                  ]}
-                >
-                  {isEditingProfile ? (
-                    <>
-                      <TextInput
-                        style={[
-                          styles.profileInput,
-                          {
-                            backgroundColor: theme.cardBackground,
-                            borderColor: theme.cardBorder,
-                            color: theme.title,
-                          },
-                        ]}
-                        placeholder="Name"
-                        placeholderTextColor={theme.faint}
-                        value={editName}
-                        onChangeText={setEditName}
-                      />
-                      <TextInput
-                        style={[
-                          styles.profileInput,
-                          {
-                            backgroundColor: theme.cardBackground,
-                            borderColor: theme.cardBorder,
-                            color: theme.title,
-                          },
-                        ]}
-                        placeholder="Email"
-                        placeholderTextColor={theme.faint}
-                        value={editEmail}
-                        onChangeText={setEditEmail}
-                      />
-                      <View style={styles.profileActionRow}>
-                        <TouchableOpacity
-                          style={styles.secondaryButton}
-                          onPress={() => {
-                            setEditName(user.name);
-                            setEditEmail(user.email);
-                            setIsEditingProfile(false);
-                          }}
-                        >
-                          <Text style={styles.secondaryButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.primaryButton}
-                          onPress={handleSaveProfile}
-                        >
-                          <Text style={styles.primaryButtonText}>Save</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <View style={styles.profileTopRow}>
-                        <TouchableOpacity
-                          onPress={handlePickAvatar}
-                          style={styles.profileAvatarWrap}
-                        >
-                          {renderAvatar(64, 26)}
-                          <View style={styles.avatarCamera}>
-                            <Ionicons
-                              name="camera-outline"
-                              size={14}
-                              color="#F8FAFC"
-                            />
-                          </View>
-                        </TouchableOpacity>
-
-                        <View style={styles.profileCopy}>
-                          <Text
-                            style={[styles.profileName, { color: theme.title }]}
-                          >
-                            {user.name}
-                          </Text>
-                          <Text
-                            style={[styles.profileEmail, { color: theme.text }]}
-                          >
-                            {user.email}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.profileMeta,
-                              { color: theme.accent },
-                            ]}
-                          >
-                            Logged in since{" "}
-                            {user.createdAt
-                              ? new Date(user.createdAt).toLocaleDateString()
-                              : "Today"}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.profileActionRow}>
-                        <TouchableOpacity
-                          style={styles.secondaryButton}
-                          onPress={() => setIsEditingProfile(true)}
-                        >
-                          <Text style={styles.secondaryButtonText}>
-                            Edit profile
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.secondaryButton}
-                          onPress={() =>
-                            setShowPasswordFields((value) => !value)
-                          }
-                        >
-                          <Text style={styles.secondaryButtonText}>
-                            Change password
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  )}
-                </View>
-
-                {showPasswordFields ? (
                   <View
                     style={[
-                      styles.passwordCard,
+                      styles.profileCard,
                       {
                         backgroundColor: theme.mutedSurface,
                         borderColor: theme.cardBorder,
                       },
                     ]}
                   >
-                    {passwordSuccess ? (
-                      <Text style={styles.passwordSuccess}>
-                        {passwordSuccess}
-                      </Text>
-                    ) : null}
-                    {passwordError ? (
-                      <Text style={styles.passwordError}>{passwordError}</Text>
-                    ) : null}
-                    <TextInput
+                    {isEditingProfile ? (
+                      <>
+                        <TextInput
+                          style={[
+                            styles.profileInput,
+                            {
+                              backgroundColor: theme.cardBackground,
+                              borderColor: theme.cardBorder,
+                              color: theme.title,
+                            },
+                          ]}
+                          placeholder="Name"
+                          placeholderTextColor={theme.faint}
+                          value={editName}
+                          onChangeText={setEditName}
+                        />
+                        <TextInput
+                          style={[
+                            styles.profileInput,
+                            {
+                              backgroundColor: theme.cardBackground,
+                              borderColor: theme.cardBorder,
+                              color: theme.title,
+                            },
+                          ]}
+                          placeholder="Email"
+                          placeholderTextColor={theme.faint}
+                          value={editEmail}
+                          onChangeText={setEditEmail}
+                        />
+                        <View style={styles.profileActionRow}>
+                          <TouchableOpacity
+                            style={styles.secondaryButton}
+                            onPress={() => {
+                              setEditName(user.name);
+                              setEditEmail(user.email);
+                              setIsEditingProfile(false);
+                            }}
+                          >
+                            <Text style={styles.secondaryButtonText}>
+                              Cancel
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.primaryButton}
+                            onPress={handleSaveProfile}
+                          >
+                            <Text style={styles.primaryButtonText}>Save</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <View style={styles.profileTopRow}>
+                          <TouchableOpacity
+                            onPress={handlePickAvatar}
+                            style={styles.profileAvatarWrap}
+                          >
+                            {renderAvatar(64, 26)}
+                            <View style={styles.avatarCamera}>
+                              <Ionicons
+                                name="camera-outline"
+                                size={14}
+                                color="#F8FAFC"
+                              />
+                            </View>
+                          </TouchableOpacity>
+
+                          <View style={styles.profileCopy}>
+                            <Text
+                              style={[
+                                styles.profileName,
+                                { color: theme.title },
+                              ]}
+                            >
+                              {user.name}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.profileEmail,
+                                { color: theme.text },
+                              ]}
+                            >
+                              {user.email}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.profileMeta,
+                                { color: theme.accent },
+                              ]}
+                            >
+                              Logged in since{" "}
+                              {user.createdAt
+                                ? new Date(user.createdAt).toLocaleDateString()
+                                : "Today"}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.profileActionRow}>
+                          <TouchableOpacity
+                            style={styles.secondaryButton}
+                            onPress={() => setIsEditingProfile(true)}
+                          >
+                            <Text style={styles.secondaryButtonText}>
+                              Edit profile
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.secondaryButton}
+                            onPress={() =>
+                              setShowPasswordFields((value) => !value)
+                            }
+                          >
+                            <Text style={styles.secondaryButtonText}>
+                              Change password
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    )}
+                  </View>
+
+                  {showPasswordFields ? (
+                    <View
                       style={[
-                        styles.profileInput,
+                        styles.passwordCard,
                         {
-                          backgroundColor: theme.cardBackground,
+                          backgroundColor: theme.mutedSurface,
                           borderColor: theme.cardBorder,
-                          color: theme.title,
                         },
                       ]}
-                      placeholder="Current password"
-                      placeholderTextColor={theme.faint}
-                      secureTextEntry
-                      value={oldPassword}
-                      onChangeText={setOldPassword}
-                    />
-                    <TextInput
-                      style={[
-                        styles.profileInput,
-                        {
-                          backgroundColor: theme.cardBackground,
-                          borderColor: theme.cardBorder,
-                          color: theme.title,
-                        },
-                      ]}
-                      placeholder="New password"
-                      placeholderTextColor={theme.faint}
-                      secureTextEntry
-                      value={newPassword}
-                      onChangeText={setNewPassword}
-                    />
-                    <TextInput
-                      style={[
-                        styles.profileInput,
-                        {
-                          backgroundColor: theme.cardBackground,
-                          borderColor: theme.cardBorder,
-                          color: theme.title,
-                        },
-                      ]}
-                      placeholder="Confirm new password"
-                      placeholderTextColor={theme.faint}
-                      secureTextEntry
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                    />
-                    <TouchableOpacity
-                      style={styles.primaryButton}
-                      onPress={handleChangePassword}
-                      disabled={isChangingPassword}
                     >
-                      {isChangingPassword ? (
-                        <ActivityIndicator size="small" color="#020617" />
-                      ) : (
-                        <Text style={styles.primaryButtonText}>
-                          Update password
+                      {passwordSuccess ? (
+                        <Text style={styles.passwordSuccess}>
+                          {passwordSuccess}
                         </Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-              </View>
+                      ) : null}
+                      {passwordError ? (
+                        <Text style={styles.passwordError}>
+                          {passwordError}
+                        </Text>
+                      ) : null}
+                      <TextInput
+                        style={[
+                          styles.profileInput,
+                          {
+                            backgroundColor: theme.cardBackground,
+                            borderColor: theme.cardBorder,
+                            color: theme.title,
+                          },
+                        ]}
+                        placeholder="Current password"
+                        placeholderTextColor={theme.faint}
+                        secureTextEntry
+                        value={oldPassword}
+                        onChangeText={setOldPassword}
+                      />
+                      <TextInput
+                        style={[
+                          styles.profileInput,
+                          {
+                            backgroundColor: theme.cardBackground,
+                            borderColor: theme.cardBorder,
+                            color: theme.title,
+                          },
+                        ]}
+                        placeholder="New password"
+                        placeholderTextColor={theme.faint}
+                        secureTextEntry
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                      />
+                      <TextInput
+                        style={[
+                          styles.profileInput,
+                          {
+                            backgroundColor: theme.cardBackground,
+                            borderColor: theme.cardBorder,
+                            color: theme.title,
+                          },
+                        ]}
+                        placeholder="Confirm new password"
+                        placeholderTextColor={theme.faint}
+                        secureTextEntry
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                      />
+                      <TouchableOpacity
+                        style={styles.primaryButton}
+                        onPress={handleChangePassword}
+                        disabled={isChangingPassword}
+                      >
+                        {isChangingPassword ? (
+                          <ActivityIndicator size="small" color="#020617" />
+                        ) : (
+                          <Text style={styles.primaryButtonText}>
+                            Update password
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+                </View>
 
-              <View
-                style={[
-                  styles.panel,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    borderColor: theme.cardBorder,
-                  },
-                ]}
-              >
-                <Text style={[styles.sectionTitle, { color: theme.title }]}>
-                  Legal and App Info
-                </Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.faint }]}>
-                  Terms and product information for the app.
-                </Text>
-
-                <TouchableOpacity
+                <View
                   style={[
-                    styles.legalRow,
+                    styles.panel,
                     {
-                      backgroundColor: theme.mutedSurface,
+                      backgroundColor: theme.cardBackground,
                       borderColor: theme.cardBorder,
                     },
                   ]}
-                  onPress={() => setInfoSheet("terms")}
                 >
-                  <View>
-                    <Text style={[styles.legalTitle, { color: theme.title }]}>
-                      Terms of Agreement / Use
-                    </Text>
-                    <Text
-                      style={[styles.legalSubtitle, { color: theme.muted }]}
-                    >
-                      Privacy, storage, and acceptable receipt uploads.
-                    </Text>
+                  <Text style={[styles.sectionTitle, { color: theme.title }]}>
+                    Help and Support
+                  </Text>
+                  <Text
+                    style={[styles.sectionSubtitle, { color: theme.faint }]}
+                  >
+                    Policies, answers, support contact, and app information.
+                  </Text>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.legalRow,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                    onPress={() => setInfoSheet("terms")}
+                  >
+                    <View>
+                      <Text style={[styles.legalTitle, { color: theme.title }]}>
+                        Terms and Conditions
+                      </Text>
+                      <Text
+                        style={[styles.legalSubtitle, { color: theme.muted }]}
+                      >
+                        Usage rules, storage expectations, and account
+                        responsibility.
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color="#7DD3FC"
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.legalRow,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                    onPress={() => setInfoSheet("privacy")}
+                  >
+                    <View>
+                      <Text style={[styles.legalTitle, { color: theme.title }]}>
+                        Privacy Policy
+                      </Text>
+                      <Text
+                        style={[styles.legalSubtitle, { color: theme.muted }]}
+                      >
+                        How profile details, expenses, and receipts are handled.
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color="#7DD3FC"
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.legalRow,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                    onPress={() => setInfoSheet("faq")}
+                  >
+                    <View>
+                      <Text style={[styles.legalTitle, { color: theme.title }]}>
+                        FAQ
+                      </Text>
+                      <Text
+                        style={[styles.legalSubtitle, { color: theme.muted }]}
+                      >
+                        Common questions about sync, receipts, exports, and
+                        recurring plans.
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color="#7DD3FC"
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.legalRow,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                    onPress={() => setInfoSheet("about")}
+                  >
+                    <View>
+                      <Text style={[styles.legalTitle, { color: theme.title }]}>
+                        About EyeGasto
+                      </Text>
+                      <Text
+                        style={[styles.legalSubtitle, { color: theme.muted }]}
+                      >
+                        Product purpose and what makes this tracker different.
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color="#7DD3FC"
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.legalRow,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                    onPress={handleContactSupport}
+                  >
+                    <View>
+                      <Text style={[styles.legalTitle, { color: theme.title }]}>
+                        Contact Support
+                      </Text>
+                      <Text
+                        style={[styles.legalSubtitle, { color: theme.muted }]}
+                      >
+                        Reach the EyeGasto support inbox for help with your
+                        account.
+                      </Text>
+                    </View>
+                    <Ionicons name="mail-outline" size={18} color="#7DD3FC" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.legalRow,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                    onPress={handleReportBug}
+                  >
+                    <View>
+                      <Text style={[styles.legalTitle, { color: theme.title }]}>
+                        Report a Bug
+                      </Text>
+                      <Text
+                        style={[styles.legalSubtitle, { color: theme.muted }]}
+                      >
+                        Send a bug report with the issue details and what you
+                        expected.
+                      </Text>
+                    </View>
+                    <Ionicons name="bug-outline" size={18} color="#7DD3FC" />
+                  </TouchableOpacity>
+
+                  <View
+                    style={[
+                      styles.legalRow,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                  >
+                    <View>
+                      <Text style={[styles.legalTitle, { color: theme.title }]}>
+                        App Version
+                      </Text>
+                      <Text
+                        style={[styles.legalSubtitle, { color: theme.muted }]}
+                      >
+                        Version {APP_VERSION}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={18}
+                      color="#7DD3FC"
+                    />
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color="#7DD3FC" />
-                </TouchableOpacity>
+                </View>
 
                 <TouchableOpacity
-                  style={[
-                    styles.legalRow,
-                    {
-                      backgroundColor: theme.mutedSurface,
-                      borderColor: theme.cardBorder,
-                    },
-                  ]}
-                  onPress={() => setInfoSheet("about")}
+                  style={styles.logoutButton}
+                  onPress={confirmLogout}
                 >
-                  <View>
-                    <Text style={[styles.legalTitle, { color: theme.title }]}>
-                      About EyeGasto
-                    </Text>
-                    <Text
-                      style={[styles.legalSubtitle, { color: theme.muted }]}
-                    >
-                      Product purpose and what makes this tracker different.
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color="#7DD3FC" />
+                  <Ionicons name="log-out-outline" size={16} color="#FCA5A5" />
+                  <Text style={styles.logoutButtonText}>Log Out</Text>
                 </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity
-                style={styles.logoutButton}
-                onPress={confirmLogout}
-              >
-                <Ionicons name="log-out-outline" size={16} color="#FCA5A5" />
-                <Text style={styles.logoutButtonText}>Log Out</Text>
-              </TouchableOpacity>
-            </>
-          ) : null}
+              </>
+            ) : null}
           </Animated.View>
         </ScrollView>
       </View>
@@ -3198,9 +3534,72 @@ export default function DashboardScreen({
             <Text style={[styles.modalTitle, { color: theme.title }]}>
               {infoSheet ? infoContent[infoSheet].title : ""}
             </Text>
-            <Text style={[styles.infoBody, { color: theme.text }]}>
-              {infoSheet ? infoContent[infoSheet].body : ""}
-            </Text>
+            {infoSheet === "faq" ? (
+              <View style={styles.infoStack}>
+                {infoContent.faq.items.map((item, index) => {
+                  const expanded = expandedFaqIndex === index;
+
+                  return (
+                    <TouchableOpacity
+                      key={item.question}
+                      style={[
+                        styles.infoSectionCard,
+                        {
+                          backgroundColor: theme.mutedSurface,
+                          borderColor: theme.cardBorder,
+                        },
+                      ]}
+                      activeOpacity={0.88}
+                      onPress={() =>
+                        setExpandedFaqIndex((current) =>
+                          current === index ? null : index,
+                        )
+                      }
+                    >
+                      <View style={styles.infoQuestionRow}>
+                        <Text
+                          style={[styles.infoSectionTitle, { color: theme.title }]}
+                        >
+                          {item.question}
+                        </Text>
+                        <Ionicons
+                          name={expanded ? "remove-outline" : "add-outline"}
+                          size={18}
+                          color={theme.accent}
+                        />
+                      </View>
+                      {expanded ? (
+                        <Text style={[styles.infoSectionBody, { color: theme.text }]}>
+                          {item.answer}
+                        </Text>
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : infoSheet ? (
+              <View style={styles.infoStack}>
+                {infoContent[infoSheet].sections.map((section) => (
+                  <View
+                    key={section.heading}
+                    style={[
+                      styles.infoSectionCard,
+                      {
+                        backgroundColor: theme.mutedSurface,
+                        borderColor: theme.cardBorder,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.infoSectionTitle, { color: theme.title }]}>
+                      {section.heading}
+                    </Text>
+                    <Text style={[styles.infoSectionBody, { color: theme.text }]}>
+                      {section.body}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             <TouchableOpacity
               style={styles.primaryButton}
               onPress={() => setInfoSheet(null)}
@@ -3251,6 +3650,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     flex: 1,
+  },
+  headerBrandBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    padding: 2,
+    backgroundColor: "rgba(103, 232, 249, 0.16)",
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.24,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  headerBrandBadgeFill: {
+    flex: 1,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerBrandCopy: {
+    flex: 1,
+    justifyContent: "center",
   },
   headerTitle: { fontSize: 24, fontWeight: "900", color: "#F8FAFC" },
   headerSubtitle: { marginTop: 3, fontSize: 12, color: "#64748B" },
@@ -3304,6 +3725,41 @@ const styles = StyleSheet.create({
     padding: 18,
     alignSelf: "flex-start",
     gap: 18,
+  },
+  sideNavIntro: {
+    gap: 12,
+  },
+  sideNavBrand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(125, 211, 252, 0.16)",
+    backgroundColor: "rgba(8, 15, 30, 0.42)",
+  },
+  sideNavBrandBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    padding: 2,
+    backgroundColor: "rgba(103, 232, 249, 0.16)",
+  },
+  sideNavBrandBadgeFill: {
+    flex: 1,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sideNavBrandCopy: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  sideNavBrandText: {
+    fontSize: 18,
+    fontWeight: "900",
   },
   sideNavTitle: {
     fontSize: 19,
@@ -4135,6 +4591,31 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: "#CBD5E1",
     marginBottom: 18,
+  },
+  infoStack: {
+    marginTop: 14,
+    marginBottom: 18,
+    gap: 10,
+  },
+  infoSectionCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+  },
+  infoSectionTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  infoSectionBody: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 21,
+  },
+  infoQuestionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
   viewerBackdrop: {
     flex: 1,

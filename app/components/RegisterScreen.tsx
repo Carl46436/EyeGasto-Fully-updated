@@ -159,7 +159,9 @@ export default function RegisterScreen({
               },
             ]}
           >
-            <View style={[styles.copyColumn, isWebWide && styles.copyColumnWide]}>
+            <View
+              style={[styles.copyColumn, isWebWide && styles.copyColumnWide]}
+            >
               <TouchableOpacity onPress={onBackPress} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={16} color="#E0F2FE" />
                 <Text style={styles.backText}>Back</Text>
@@ -167,26 +169,35 @@ export default function RegisterScreen({
 
               <View style={styles.brandRow}>
                 <View style={styles.brandBadge}>
-                  <Ionicons name="eye-outline" size={20} color="#082F49" />
+                  <LinearGradient
+                    colors={["#67E8F9", "#38BDF8", "#2563EB"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.brandBadgeFill}
+                  >
+                    <Ionicons name="eye-outline" size={20} color="#082F49" />
+                  </LinearGradient>
                 </View>
-                <Text style={styles.brandText}>EyeGasto</Text>
+                <View style={styles.brandCopy}>
+                  <Text style={styles.brandText}>EyeGasto</Text>
+                </View>
               </View>
 
-              <Text style={styles.eyebrow}>Create your workspace</Text>
+              <Text style={styles.eyebrow}>Get started!</Text>
               <Text style={[styles.title, isWebWide && styles.titleWide]}>
-                Start tracking spending with a setup that stays simple.
+                Tracking made simple.
               </Text>
               <Text style={styles.subtitle}>
-                Create your account to unlock synced receipts, dashboard analytics,
-                recurring planning, and exports across app and web.
+                Create an account to save receipts, see your spending charts,
+                and track your budget and expenses.
               </Text>
 
               {isWebWide ? (
                 <View style={styles.sideNotes}>
                   {[
-                    "One account for mobile logging and desktop review",
-                    "Receipts, charts, and profile settings in one flow",
-                    "A calmer dashboard built for day-to-day budgeting",
+                    "Log on your phone, review on your computer",
+                    "Your receipts and settings in one place",
+                    "A calm dashboard for your daily budget",
                   ].map((item) => (
                     <View key={item} style={styles.noteRow}>
                       <View style={styles.noteDot} />
@@ -200,7 +211,7 @@ export default function RegisterScreen({
             <BlurView intensity={30} tint="dark" style={styles.card}>
               <Text style={styles.cardTitle}>Create account</Text>
               <Text style={styles.cardSubtitle}>
-                Set up your details to start building your expense history.
+                Just a few details to get your smart budget started.
               </Text>
 
               <View style={styles.inputGroup}>
@@ -214,7 +225,7 @@ export default function RegisterScreen({
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="Your full name"
+                    placeholder="John Kyle Perez"
                     value={name}
                     onChangeText={setName}
                     onFocus={() => scrollToField(220)}
@@ -224,7 +235,9 @@ export default function RegisterScreen({
                     autoCapitalize="words"
                   />
                 </View>
-                {errors.name ? <Text style={styles.error}>{errors.name}</Text> : null}
+                {errors.name ? (
+                  <Text style={styles.error}>{errors.name}</Text>
+                ) : null}
               </View>
 
               <View style={styles.inputGroup}>
@@ -239,7 +252,7 @@ export default function RegisterScreen({
                   <TextInput
                     ref={emailRef}
                     style={styles.input}
-                    placeholder="you@example.com"
+                    placeholder="you@gmail.com"
                     value={email}
                     onChangeText={setEmail}
                     onFocus={() => scrollToField(320)}
@@ -250,7 +263,9 @@ export default function RegisterScreen({
                     autoCapitalize="none"
                   />
                 </View>
-                {errors.email ? <Text style={styles.error}>{errors.email}</Text> : null}
+                {errors.email ? (
+                  <Text style={styles.error}>{errors.email}</Text>
+                ) : null}
               </View>
 
               <View style={styles.inputGroup}>
@@ -312,7 +327,9 @@ export default function RegisterScreen({
                   </TouchableOpacity>
                 </View>
               </View>
-              {errors.terms ? <Text style={styles.error}>{errors.terms}</Text> : null}
+              {errors.terms ? (
+                <Text style={styles.error}>{errors.terms}</Text>
+              ) : null}
 
               <TouchableOpacity
                 style={styles.primaryButton}
@@ -417,24 +434,43 @@ const styles = StyleSheet.create({
   },
   brandRow: {
     marginTop: 10,
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(125, 211, 252, 0.16)",
+    backgroundColor: "rgba(8, 15, 30, 0.62)",
   },
   brandBadge: {
-    width: 42,
-    height: 42,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    padding: 2,
+    backgroundColor: "rgba(103, 232, 249, 0.16)",
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  brandBadgeFill: {
+    flex: 1,
     borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#67E8F9",
+  },
+  brandCopy: {
+    justifyContent: "center",
   },
   brandText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "900",
-    color: "#E0F2FE",
-    letterSpacing: 1.4,
-    textTransform: "uppercase",
+    color: "#F8FAFC",
+    letterSpacing: 0.6,
   },
   eyebrow: {
     marginTop: 10,
