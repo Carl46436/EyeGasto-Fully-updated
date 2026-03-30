@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { SafeAreaView, StyleSheet } from "react-native";
 
 import WelcomeScreen from "./components/WelcomeScreen";
@@ -9,7 +9,7 @@ import LoadingScreen from "./components/LoadingScreen";
 import ErrorAlert from "./components/ErrorAlert";
 import authService from "./services/authService";
 import expenseService from "./services/expenseService";
-import { Expense, User } from "./types";
+import { Expense, RecurringExpenseTemplate, User } from "./types";
 
 type Screen = "welcome" | "login" | "register" | "dashboard";
 type AlertState = {
@@ -25,12 +25,32 @@ export default function Index() {
   const [isExpensesLoading, setIsExpensesLoading] = useState(false);
   const [alertState, setAlertState] = useState<AlertState | null>(null);
 
-  const showAlert = (
+  const showAlert = useCallback((
     message: string,
     type: AlertState["type"] = "error",
   ) => {
     setAlertState({ message, type });
-  };
+  }, []);
+
+  const loadExpensesForUser = useCallback(async (baseUser: User) => {
+    setIsExpensesLoading(true);
+
+    const syncResult = await expenseService.syncRecurringExpenses(baseUser);
+    const resolvedUser = syncResult.user ?? baseUser;
+    setUser(resolvedUser);
+
+    const userExpenses = await expenseService.getExpenses();
+    setExpenses(userExpenses);
+
+    if (syncResult.syncedCount > 0) {
+      showAlert(
+        `${syncResult.syncedCount} recurring expense${
+          syncResult.syncedCount === 1 ? "" : "s"
+        } added automatically.`,
+        "success",
+      );
+    }
+  }, [showAlert]);
 
   // Check auth status on mount
   useEffect(() => {
@@ -41,12 +61,9 @@ export default function Index() {
           await authService.checkAuthStatus();
 
         if (isAuthenticated && currentUser) {
-          setUser(currentUser);
           setCurrentScreen("dashboard");
-          setIsExpensesLoading(true);
           setIsLoading(false);
-          const userExpenses = await expenseService.getExpenses();
-          setExpenses(userExpenses);
+          await loadExpensesForUser(currentUser);
         } else {
           setCurrentScreen("welcome");
         }
@@ -60,7 +77,7 @@ export default function Index() {
     };
 
     initializeApp();
-  }, []);
+  }, [loadExpensesForUser, showAlert]);
 
   const handleLogin = async (email: string, password: string) => {
     try {
@@ -74,10 +91,10 @@ export default function Index() {
 
       setUser(result.user || null);
       setCurrentScreen("dashboard");
-      setIsExpensesLoading(true);
       setIsLoading(false);
-      const userExpenses = await expenseService.getExpenses();
-      setExpenses(userExpenses);
+      if (result.user) {
+        await loadExpensesForUser(result.user);
+      }
     } catch (err: any) {
       showAlert(err.message || "Login error");
     } finally {
@@ -137,6 +154,9 @@ export default function Index() {
     category?: string,
     notes?: string,
     imageUri?: string,
+    options?: {
+      recurringMonthly?: boolean;
+    },
   ): Promise<boolean> => {
     const tempId = `temp-${Date.now()}`;
     const optimisticExpense: Expense = {
@@ -174,7 +194,44 @@ export default function Index() {
           ),
         );
       }
-      showAlert("Expense added successfully.", "success");
+
+      if (options?.recurringMonthly && user && result.expense) {
+        const expenseDate = new Date(result.expense.date);
+        const recurringTemplate: RecurringExpenseTemplate = {
+          id: `rec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          description,
+          amount,
+          category,
+          notes,
+          frequency: "monthly",
+          startDate: expenseDate.toISOString(),
+          dayOfMonth: expenseDate.getDate(),
+          lastGeneratedAt: expenseDate.toISOString(),
+          isActive: true,
+        };
+
+        const updateResult = await authService.updateUser({
+          recurringExpenses: [
+            ...(user.recurringExpenses ?? []),
+            recurringTemplate,
+          ],
+        });
+
+        if (updateResult.success && updateResult.user) {
+          setUser(updateResult.user);
+          showAlert(
+            "Expense added and monthly recurring plan created.",
+            "success",
+          );
+        } else {
+          showAlert(
+            "Expense added, but the recurring plan could not be saved.",
+            "warning",
+          );
+        }
+      } else {
+        showAlert("Expense added successfully.", "success");
+      }
       return true;
     } catch (err: any) {
       setExpenses((prev) => prev.filter((expense) => expense.id !== tempId));

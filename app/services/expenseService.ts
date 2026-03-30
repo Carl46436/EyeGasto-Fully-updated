@@ -1,9 +1,34 @@
-import { Expense } from "../types";
+import { Expense, RecurringExpenseTemplate, User } from "../types";
 import { supabase } from "./supabaseClient";
 import authService from "./authService";
 import expenseStorage from "./expenseStorage";
 
 class ExpenseService {
+  private getNextRecurringDate(
+    template: RecurringExpenseTemplate,
+    fromDate: Date,
+  ) {
+    const startDate = new Date(template.startDate);
+    const nextDate = new Date(fromDate);
+    nextDate.setMonth(nextDate.getMonth() + 1, 1);
+
+    const daysInMonth = new Date(
+      nextDate.getFullYear(),
+      nextDate.getMonth() + 1,
+      0,
+    ).getDate();
+
+    nextDate.setDate(Math.min(template.dayOfMonth, daysInMonth));
+    nextDate.setHours(
+      startDate.getHours(),
+      startDate.getMinutes(),
+      startDate.getSeconds(),
+      startDate.getMilliseconds(),
+    );
+
+    return nextDate;
+  }
+
   private mapExpenseRecord(record: any): Expense {
     const resolvedImageUrl =
       expenseStorage.getReceiptPublicUrl(record.receipt_path) ||
@@ -87,6 +112,81 @@ class ExpenseService {
         error: error.message || "Failed to add expense",
       };
     }
+  }
+
+  async syncRecurringExpenses(
+    currentUser?: User | null,
+  ): Promise<{ syncedCount: number; user?: User }> {
+    const resolvedUser = currentUser ?? (await authService.getCurrentUser());
+    const recurringExpenses = resolvedUser?.recurringExpenses ?? [];
+
+    if (!resolvedUser || recurringExpenses.length === 0) {
+      return { syncedCount: 0, user: resolvedUser ?? undefined };
+    }
+
+    const now = new Date();
+    let syncedCount = 0;
+    let templatesChanged = false;
+    const nextTemplates = [...recurringExpenses];
+
+    for (let index = 0; index < nextTemplates.length; index += 1) {
+      const template = nextTemplates[index];
+      if (template.isActive === false) {
+        continue;
+      }
+
+      let cursor = new Date(template.lastGeneratedAt || template.startDate);
+      let latestGeneratedAt = template.lastGeneratedAt;
+
+      while (true) {
+        const nextOccurrence = this.getNextRecurringDate(template, cursor);
+        if (nextOccurrence > now) {
+          break;
+        }
+
+        const { error } = await supabase.from("expenses").insert({
+          user_id: resolvedUser.id,
+          description: template.description,
+          amount: template.amount,
+          date: nextOccurrence.toISOString(),
+          category: template.category || null,
+          notes: template.notes || null,
+          image_url: null,
+          receipt_path: null,
+        });
+
+        if (error) {
+          console.error("Error syncing recurring expense:", error);
+          break;
+        }
+
+        syncedCount += 1;
+        templatesChanged = true;
+        latestGeneratedAt = nextOccurrence.toISOString();
+        cursor = nextOccurrence;
+      }
+
+      if (latestGeneratedAt && latestGeneratedAt !== template.lastGeneratedAt) {
+        nextTemplates[index] = {
+          ...template,
+          lastGeneratedAt: latestGeneratedAt,
+        };
+      }
+    }
+
+    if (!templatesChanged) {
+      return { syncedCount: 0, user: resolvedUser };
+    }
+
+    const updateResult = await authService.updateUser({
+      recurringExpenses: nextTemplates,
+    });
+
+    if (!updateResult.success) {
+      return { syncedCount, user: resolvedUser };
+    }
+
+    return { syncedCount, user: updateResult.user };
   }
 
   async getExpenses(): Promise<Expense[]> {

@@ -23,6 +23,9 @@ interface Props {
     category?: string,
     notes?: string,
     imageUri?: string,
+    options?: {
+      recurringMonthly?: boolean;
+    },
   ) => boolean | Promise<boolean>;
   mode?: "dark" | "light";
 }
@@ -36,6 +39,7 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
   const [category, setCategory] = useState("");
   const [notes, setNotes] = useState("");
   const [imageUri, setImageUri] = useState<string | undefined>();
+  const [isRecurringMonthly, setIsRecurringMonthly] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handlePickImage = async () => {
@@ -82,6 +86,7 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
         category.trim() || undefined,
         notes.trim() || undefined,
         imageUri,
+        { recurringMonthly: isRecurringMonthly },
       );
 
       if (!success) {
@@ -93,6 +98,7 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
       setCategory("");
       setNotes("");
       setImageUri(undefined);
+      setIsRecurringMonthly(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -217,6 +223,48 @@ export default function AddExpenseForm({ onAdd, mode = "dark" }: Props) {
             </TouchableOpacity>
           )}
         </View>
+
+        <TouchableOpacity
+          activeOpacity={0.86}
+          style={[
+            styles.recurringToggle,
+            isLight && styles.recurringToggleLight,
+            isRecurringMonthly && styles.recurringToggleActive,
+          ]}
+          onPress={() => setIsRecurringMonthly((value) => !value)}
+        >
+          <View style={styles.recurringCopy}>
+            <Text
+              style={[
+                styles.recurringTitle,
+                isLight && styles.recurringTitleLight,
+              ]}
+            >
+              Repeat every month
+            </Text>
+            <Text
+              style={[
+                styles.recurringSubtitle,
+                isLight && styles.recurringSubtitleLight,
+              ]}
+            >
+              Save this expense now and recreate it monthly on the same day.
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.recurringSwitch,
+              isRecurringMonthly && styles.recurringSwitchActive,
+            ]}
+          >
+            <View
+              style={[
+                styles.recurringKnob,
+                isRecurringMonthly && styles.recurringKnobActive,
+              ]}
+            />
+          </View>
+        </TouchableOpacity>
 
         <TouchableOpacity
           activeOpacity={0.9}
@@ -408,6 +456,68 @@ const styles = StyleSheet.create({
   },
   previewPlaceholderTextLight: {
     color: "#64748B",
+  },
+  recurringToggle: {
+    marginTop: 2,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+    backgroundColor: "rgba(15, 23, 42, 0.72)",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  recurringToggleLight: {
+    borderColor: "rgba(148, 163, 184, 0.16)",
+    backgroundColor: "rgba(241, 245, 249, 0.96)",
+  },
+  recurringToggleActive: {
+    borderColor: "rgba(34, 211, 238, 0.34)",
+    backgroundColor: "rgba(14, 116, 144, 0.12)",
+  },
+  recurringCopy: {
+    flex: 1,
+  },
+  recurringTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#F8FAFC",
+  },
+  recurringTitleLight: {
+    color: "#0F172A",
+  },
+  recurringSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#94A3B8",
+  },
+  recurringSubtitleLight: {
+    color: "#64748B",
+  },
+  recurringSwitch: {
+    width: 46,
+    height: 28,
+    borderRadius: 999,
+    padding: 3,
+    backgroundColor: "rgba(51, 65, 85, 0.92)",
+    justifyContent: "center",
+  },
+  recurringSwitchActive: {
+    backgroundColor: "#22D3EE",
+  },
+  recurringKnob: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#E2E8F0",
+  },
+  recurringKnobActive: {
+    alignSelf: "flex-end",
+    backgroundColor: "#020617",
   },
   submitButton: {
     marginTop: 4,

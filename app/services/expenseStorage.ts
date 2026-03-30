@@ -4,6 +4,7 @@ import authService from "./authService";
 
 const BUCKET_NAME = "receipts";
 const SHARED_FOLDER = "all-receipts";
+const AVATAR_FOLDER = "avatars";
 
 class ExpenseStorageService {
   private base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -72,6 +73,43 @@ class ExpenseStorageService {
       return {
         success: false,
         error: error.message || "Failed to upload receipt",
+      };
+    }
+  }
+
+  async uploadAvatar(
+    uri: string,
+    mimeType?: string | null,
+  ): Promise<{ success: boolean; imageUrl?: string; path?: string; error?: string }> {
+    try {
+      const currentUser = await authService.getCurrentUser();
+      if (!currentUser) {
+        return { success: false, error: "User not authenticated" };
+      }
+
+      const fileData = await this.getArrayBufferFromUri(uri);
+      const extension = this.getFileExtension(uri, mimeType);
+      const path = `${AVATAR_FOLDER}/${currentUser.id}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${extension}`;
+
+      const { error } = await supabase.storage
+        .from(BUCKET_NAME)
+        .upload(path, fileData, {
+          contentType: mimeType || `image/${extension}`,
+          upsert: false,
+        });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
+      return { success: true, imageUrl: data.publicUrl, path };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || "Failed to upload avatar",
       };
     }
   }

@@ -1,7 +1,30 @@
-import { User } from "../types/index";
+import { RecurringExpenseTemplate, User } from "../types/index";
 import { supabase } from "./supabaseClient";
 
 class AuthService {
+  private mapRecurringExpenses(value: unknown): RecurringExpenseTemplate[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value
+      .filter((item): item is RecurringExpenseTemplate => {
+        return !!item && typeof item === "object" && "id" in item;
+      })
+      .map((item) => ({
+        id: item.id,
+        description: item.description,
+        amount: Number(item.amount) || 0,
+        category: item.category ?? undefined,
+        notes: item.notes ?? undefined,
+        frequency: "monthly",
+        startDate: item.startDate,
+        dayOfMonth: Number(item.dayOfMonth) || 1,
+        lastGeneratedAt: item.lastGeneratedAt ?? undefined,
+        isActive: item.isActive ?? true,
+      }));
+  }
+
   private mapSupabaseUser(su: any): User {
     return {
       id: su.id,
@@ -10,6 +33,9 @@ class AuthService {
       avatar: su.user_metadata?.avatar ?? null,
       password: "",
       createdAt: su.created_at ? new Date(su.created_at) : new Date(),
+      recurringExpenses: this.mapRecurringExpenses(
+        su.user_metadata?.recurringExpenses,
+      ),
     };
   }
 
@@ -104,11 +130,15 @@ class AuthService {
     name?: string;
     email?: string;
     avatar?: string;
+    recurringExpenses?: RecurringExpenseTemplate[];
   }): Promise<{ success: boolean; error?: string; user?: User }> {
     try {
       const updateData: any = { data: {} };
       if (updates.name) updateData.data.name = updates.name;
       if (updates.avatar) updateData.data.avatar = updates.avatar;
+      if (updates.recurringExpenses) {
+        updateData.data.recurringExpenses = updates.recurringExpenses;
+      }
       if (updates.email) updateData.email = updates.email;
 
       // If no name or avatar update, we don't need 'data' key

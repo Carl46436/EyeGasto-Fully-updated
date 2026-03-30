@@ -1,3 +1,16 @@
+export interface RecurringExpenseTemplate {
+  id: string;
+  description: string;
+  amount: number;
+  category?: string;
+  notes?: string;
+  frequency: "monthly";
+  startDate: string;
+  dayOfMonth: number;
+  lastGeneratedAt?: string;
+  isActive?: boolean;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -5,6 +18,7 @@ export interface User {
   password?: string;
   avatar?: string;
   createdAt?: string | Date;
+  recurringExpenses?: RecurringExpenseTemplate[];
 }
 
 export interface Expense {
