@@ -15,37 +15,25 @@ import {
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { buildAuthRedirectUrl } from "../services/authRedirect";
-import { supabase } from "../services/supabaseClient";
 
 interface Props {
-  onLogin: (email: string, password: string) => void;
   onBackPress: () => void;
-  onRegisterPress: () => void;
+  onSubmit: (password: string) => Promise<void>;
 }
 
-export default function LoginScreen({
-  onLogin,
+export default function ResetPasswordScreen({
   onBackPress,
-  onRegisterPress,
+  onSubmit,
 }: Props) {
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === "web" && width >= 960;
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-
-  const scrollRef = useRef<ScrollView>(null);
-  const passwordRef = useRef<TextInput>(null);
   const entranceAnim = useRef(new Animated.Value(0)).current;
 
-  const scrollToField = (y: number) => {
-    if (Platform.OS === "web" || isWebWide) {
-      return;
-    }
-
-    scrollRef.current?.scrollTo({ y, animated: true });
-  };
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     Animated.timing(entranceAnim, {
@@ -55,41 +43,31 @@ export default function LoginScreen({
     }).start();
   }, [entranceAnim]);
 
-  const handleLogin = () => {
-    if (email.trim() && password.trim()) {
-      onLogin(email, password);
+  const handleSubmit = async () => {
+    if (!password.trim()) {
+      Alert.alert("Missing password", "Enter a new password to continue.");
       return;
     }
 
-    Alert.alert("Missing details", "Please enter both email and password.");
-  };
-
-  const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.alert("Type your email first to reset your password.");
-      } else {
-        Alert.alert(
-          "Enter your email",
-          "Type your email first to reset your password.",
-        );
-      }
+    if (password.length < 6) {
+      Alert.alert(
+        "Password too short",
+        "Your new password must be at least 6 characters.",
+      );
       return;
     }
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: buildAuthRedirectUrl("reset-password"),
-    });
-
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.alert(error ? error.message : "Password reset email sent.");
+    if (password !== confirmPassword) {
+      Alert.alert("Passwords do not match", "Please re-enter both fields.");
       return;
     }
 
-    Alert.alert(
-      error ? "Reset failed" : "Check your inbox",
-      error ? error.message : "Password reset email sent.",
-    );
+    setIsSubmitting(true);
+    try {
+      await onSubmit(password);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -109,14 +87,12 @@ export default function LoginScreen({
         keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
       >
         <ScrollView
-          ref={scrollRef}
           contentContainerStyle={[
             styles.scrollContent,
             !isWebWide && styles.scrollContentMobile,
             isWebWide && styles.scrollContentWide,
           ]}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           <Animated.View
@@ -160,63 +136,24 @@ export default function LoginScreen({
                 </View>
               </View>
 
-              <Text style={styles.eyebrow}>Welcome back</Text>
+              <Text style={styles.eyebrow}>Password recovery</Text>
               <Text style={[styles.title, isWebWide && styles.titleWide]}>
-                Ready to jump back in?
+                Choose a new password.
               </Text>
               <Text style={styles.subtitle}>
-                Log in to see your latest spending, saved receipts, and synced
-                data.
+                Your recovery link is valid. Set a new password below, then log
+                back in with your updated credentials.
               </Text>
-
-              {isWebWide ? (
-                <View style={styles.sideNotes}>
-                  {[
-                    "View your receipts and dashboard at a glance",
-                    "Everything stays synced to your cloud profile",
-                    "Your monthly plans are ready to go",
-                  ].map((item) => (
-                    <View key={item} style={styles.noteRow}>
-                      <View style={styles.noteDot} />
-                      <Text style={styles.noteText}>{item}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
             </View>
 
             <BlurView intensity={30} tint="dark" style={styles.card}>
-              <Text style={styles.cardTitle}>Log in</Text>
+              <Text style={styles.cardTitle}>Reset password</Text>
               <Text style={styles.cardSubtitle}>
-                Use your account email and password to continue.
+                Use at least 6 characters for your new password.
               </Text>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons
-                    name="mail-outline"
-                    size={18}
-                    color="#94A3B8"
-                    style={styles.inputIcon}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="you@gmail.com"
-                    value={email}
-                    onChangeText={setEmail}
-                    onFocus={() => scrollToField(250)}
-                    keyboardType="email-address"
-                    placeholderTextColor="#6B7A90"
-                    returnKeyType="next"
-                    onSubmitEditing={() => passwordRef.current?.focus()}
-                    autoCapitalize="none"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Password</Text>
+                <Text style={styles.label}>New password</Text>
                 <View style={styles.inputWrapper}>
                   <Ionicons
                     name="lock-closed-outline"
@@ -225,16 +162,13 @@ export default function LoginScreen({
                     style={styles.inputIcon}
                   />
                   <TextInput
-                    ref={passwordRef}
                     style={styles.input}
-                    placeholder="Enter your password"
+                    placeholder="Enter a new password"
                     value={password}
                     onChangeText={setPassword}
-                    onFocus={() => scrollToField(360)}
                     secureTextEntry={!showPassword}
                     placeholderTextColor="#6B7A90"
-                    returnKeyType="go"
-                    onSubmitEditing={handleLogin}
+                    returnKeyType="next"
                   />
                   <TouchableOpacity
                     onPress={() => setShowPassword((value) => !value)}
@@ -250,31 +184,51 @@ export default function LoginScreen({
                 </View>
               </View>
 
-              <TouchableOpacity
-                style={styles.forgotPassword}
-                onPress={handleForgotPassword}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.forgotText}>Forgot password?</Text>
-              </TouchableOpacity>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Confirm password</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="shield-checkmark-outline"
+                    size={18}
+                    color="#94A3B8"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Confirm your password"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirmPassword}
+                    placeholderTextColor="#6B7A90"
+                    returnKeyType="go"
+                    onSubmitEditing={handleSubmit}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowConfirmPassword((value) => !value)}
+                    style={styles.eyeButton}
+                    activeOpacity={0.86}
+                  >
+                    <Ionicons
+                      name={
+                        showConfirmPassword ? "eye-off-outline" : "eye-outline"
+                      }
+                      size={18}
+                      color="#E2E8F0"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
 
               <TouchableOpacity
                 style={styles.primaryButton}
-                onPress={handleLogin}
+                onPress={handleSubmit}
                 activeOpacity={0.88}
+                disabled={isSubmitting}
               >
-                <Text style={styles.primaryButtonText}>Log In</Text>
-                <Ionicons name="arrow-forward" size={16} color="#020617" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.switchLink}
-                onPress={onRegisterPress}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.switchText}>
-                  Don&apos;t have an account? Create one
+                <Text style={styles.primaryButtonText}>
+                  {isSubmitting ? "Updating..." : "Update password"}
                 </Text>
+                <Ionicons name="arrow-forward" size={16} color="#020617" />
               </TouchableOpacity>
             </BlurView>
           </Animated.View>
@@ -422,28 +376,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: "#B6C2D3",
   },
-  sideNotes: {
-    marginTop: 10,
-    gap: 12,
-  },
-  noteRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  noteDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 7,
-    backgroundColor: "#67E8F9",
-  },
-  noteText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 22,
-    color: "#CBD5E1",
-  },
   card: {
     borderRadius: 28,
     overflow: "hidden",
@@ -505,18 +437,9 @@ const styles = StyleSheet.create({
       web: { cursor: "pointer" } as object,
     }),
   },
-  forgotPassword: {
-    alignSelf: "flex-end",
-    marginTop: 12,
-  },
-  forgotText: {
-    color: "#7DD3FC",
-    fontSize: 13,
-    fontWeight: "700",
-  },
   primaryButton: {
     minHeight: 54,
-    marginTop: 18,
+    marginTop: 22,
     paddingHorizontal: 20,
     borderRadius: 999,
     backgroundColor: "#7DD3FC",
@@ -529,13 +452,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
     color: "#020617",
-  },
-  switchLink: {
-    marginTop: 18,
-    alignItems: "center",
-  },
-  switchText: {
-    color: "#B6C2D3",
-    fontSize: 14,
   },
 });

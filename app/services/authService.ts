@@ -1,4 +1,5 @@
 import { RecurringExpenseTemplate, User } from "../types/index";
+import { buildAuthRedirectUrl } from "./authRedirect";
 import { supabase } from "./supabaseClient";
 
 class AuthService {
@@ -61,6 +62,7 @@ class AuthService {
         password,
         options: {
           data: { name },
+          emailRedirectTo: buildAuthRedirectUrl("auth/callback"),
         },
       });
 
@@ -160,12 +162,46 @@ class AuthService {
   }
 
   async changePassword(
+    currentPassword: string,
     newPassword: string,
+    options?: {
+      skipCurrentPasswordCheck?: boolean;
+    },
   ): Promise<{ success: boolean; error?: string }> {
     try {
+      if (!options?.skipCurrentPasswordCheck && !currentPassword) {
+        return { success: false, error: "Current password is required" };
+      }
+
       if (!newPassword) {
         return { success: false, error: "Password is required" };
       }
+
+      if (!options?.skipCurrentPasswordCheck) {
+        const { data: userData, error: userError } =
+          await supabase.auth.getUser();
+        const currentEmail = userData.user?.email;
+
+        if (userError || !currentEmail) {
+          return {
+            success: false,
+            error: userError?.message || "Unable to verify current user",
+          };
+        }
+
+        const { error: reauthError } = await supabase.auth.signInWithPassword({
+          email: currentEmail,
+          password: currentPassword,
+        });
+
+        if (reauthError) {
+          return {
+            success: false,
+            error: "Current password is incorrect",
+          };
+        }
+      }
+
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });

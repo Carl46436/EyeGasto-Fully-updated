@@ -8,6 +8,7 @@ const STORAGE_FILE = `${FileSystem.documentDirectory ?? ""}eyegasto-storage.json
 export const StorageKeys = {
   USERS: "users",
   CURRENT_USER: "currentUser",
+  SUPABASE_SESSION: "supabase.auth.token",
   EXPENSES: "expenses",
   APP_VERSION: "appVersion",
   DASHBOARD_PREFERENCES: "dashboardPreferences",

@@ -1,17 +1,29 @@
 import React, { useCallback, useEffect, useState } from "react";
+import * as Linking from "expo-linking";
 import { SafeAreaView, StyleSheet } from "react-native";
 
 import WelcomeScreen from "./components/WelcomeScreen";
 import LoginScreen from "./components/LoginScreen";
 import RegisterScreen from "./components/RegisterScreen";
+import EmailConfirmedScreen from "./components/EmailConfirmedScreen";
+import ResetPasswordScreen from "./components/ResetPasswordScreen";
 import DashboardScreen from "./components/DashboardScreen";
 import LoadingScreen from "./components/LoadingScreen";
 import ErrorAlert from "./components/ErrorAlert";
 import authService from "./services/authService";
+import { parseAuthRedirectUrl } from "./services/authRedirect";
 import expenseService from "./services/expenseService";
+import storageService, { StorageKeys } from "./services/storageService";
+import { supabase } from "./services/supabaseClient";
 import { Expense, RecurringExpenseTemplate, User } from "./types";
 
-type Screen = "welcome" | "login" | "register" | "dashboard";
+type Screen =
+  | "welcome"
+  | "login"
+  | "register"
+  | "emailConfirmed"
+  | "resetPassword"
+  | "dashboard";
 type AlertState = {
   message: string;
   type: "error" | "warning" | "success";
@@ -30,6 +42,25 @@ export default function Index() {
     type: AlertState["type"] = "error",
   ) => {
     setAlertState({ message, type });
+  }, []);
+
+  const resetDashboardViewPreference = useCallback(async () => {
+    const preferences = await storageService.getItem<{
+      themeMode?: "dark" | "light";
+      monthlyBudget?: number;
+      activeTab?: "overview" | "stats" | "gallery" | "profile";
+      selectedCategory?: string | "All";
+      dateRange?: "thisMonth" | "lastMonth" | "last30Days" | "allTime";
+    }>(StorageKeys.DASHBOARD_PREFERENCES);
+
+    if (!preferences) {
+      return;
+    }
+
+    await storageService.setItem(StorageKeys.DASHBOARD_PREFERENCES, {
+      ...preferences,
+      activeTab: "overview",
+    });
   }, []);
 
   const loadExpensesForUser = useCallback(async (baseUser: User) => {
@@ -52,11 +83,85 @@ export default function Index() {
     }
   }, [showAlert]);
 
+  const handleAuthRedirect = useCallback(async (url: string) => {
+    const { accessToken, refreshToken, tokenHash, code, type } =
+      parseAuthRedirectUrl(url);
+    const webType =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("type") ?? undefined
+        : undefined;
+    const resolvedType = type ?? webType;
+
+    if (!resolvedType && !code) {
+      return "none" as const;
+    }
+
+    try {
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (error) {
+          throw error;
+        }
+      } else if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+        if (error) {
+          throw error;
+        }
+      } else if (tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: resolvedType as any,
+        });
+
+        if (error) {
+          throw error;
+        }
+      } else {
+        return "none" as const;
+      }
+
+      if (resolvedType === "recovery") {
+        setCurrentScreen("resetPassword");
+        showAlert("Recovery link verified. Enter a new password.", "success");
+        return "recovery" as const;
+      }
+
+      if (resolvedType === "signup" || resolvedType === "email") {
+        await supabase.auth.signOut();
+        setUser(null);
+        setExpenses([]);
+        setCurrentScreen("emailConfirmed");
+        return "confirmed" as const;
+      }
+
+      return "auth" as const;
+    } catch (err: any) {
+      showAlert(err.message || "This email link is invalid or expired.");
+      setCurrentScreen("login");
+      return "error" as const;
+    }
+  }, [showAlert]);
+
   // Check auth status on mount
   useEffect(() => {
     const initializeApp = async () => {
       try {
         setIsLoading(true);
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl) {
+          const redirectResult = await handleAuthRedirect(initialUrl);
+          if (
+            redirectResult === "recovery" ||
+            redirectResult === "confirmed"
+          ) {
+            return;
+          }
+        }
         const { isAuthenticated, user: currentUser } =
           await authService.checkAuthStatus();
 
@@ -77,7 +182,17 @@ export default function Index() {
     };
 
     initializeApp();
-  }, [loadExpensesForUser, showAlert]);
+  }, [handleAuthRedirect, loadExpensesForUser, showAlert]);
+
+  useEffect(() => {
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      handleAuthRedirect(url);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [handleAuthRedirect]);
 
   const handleLogin = async (email: string, password: string) => {
     try {
@@ -139,7 +254,7 @@ export default function Index() {
   ) => {
     try {
       setIsLoading(true);
-      const result = await authService.changePassword(newPassword);
+      const result = await authService.changePassword(oldPassword, newPassword);
       if (!result.success) {
         throw new Error(result.error || "Password update failed");
       }
@@ -237,6 +352,27 @@ export default function Index() {
       setExpenses((prev) => prev.filter((expense) => expense.id !== tempId));
       showAlert(err.message || "Error adding expense");
       return false;
+    }
+  };
+
+  const handleRecoveredPasswordUpdate = async (newPassword: string) => {
+    try {
+      setIsLoading(true);
+      const result = await authService.changePassword("", newPassword, {
+        skipCurrentPasswordCheck: true,
+      });
+      if (!result.success) {
+        throw new Error(result.error || "Password update failed");
+      }
+
+      await supabase.auth.signOut();
+      setUser(null);
+      setExpenses([]);
+      await resetDashboardViewPreference();
+      setCurrentScreen("login");
+      showAlert("Password updated. Please log in with your new password.", "success");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -359,6 +495,7 @@ export default function Index() {
       await authService.logout();
       setUser(null);
       setExpenses([]);
+      await resetDashboardViewPreference();
       setCurrentScreen("welcome");
     } catch (err: any) {
       showAlert(err.message || "Logout error");
@@ -400,6 +537,20 @@ export default function Index() {
       {currentScreen === "register" && (
         <RegisterScreen
           onRegister={handleRegister}
+          onBackPress={() => setCurrentScreen("welcome")}
+          onLoginPress={() => setCurrentScreen("login")}
+        />
+      )}
+
+      {currentScreen === "resetPassword" && (
+        <ResetPasswordScreen
+          onBackPress={() => setCurrentScreen("login")}
+          onSubmit={handleRecoveredPasswordUpdate}
+        />
+      )}
+
+      {currentScreen === "emailConfirmed" && (
+        <EmailConfirmedScreen
           onBackPress={() => setCurrentScreen("welcome")}
           onLoginPress={() => setCurrentScreen("login")}
         />

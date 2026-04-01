@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import Constants from "expo-constants";
+import storageService, { StorageKeys } from "./storageService";
 
 const EXPO_PUBLIC_SUPABASE_URL =
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
@@ -25,7 +26,19 @@ export const supabase = createClient(
   EXPO_PUBLIC_SUPABASE_ANON_KEY,
   {
     auth: {
-      persistSession: false,
+      storage: {
+        getItem: (key) => storageService.getItem<string>(key),
+        setItem: async (key, value) => {
+          await storageService.setItem(key, value);
+        },
+        removeItem: async (key) => {
+          await storageService.removeItem(key);
+        },
+      },
+      storageKey: StorageKeys.SUPABASE_SESSION,
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
     },
   },
 );

@@ -1095,6 +1095,12 @@ export default function DashboardScreen({
       setNewPassword("");
       setConfirmPassword("");
       setShowPasswordFields(false);
+
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.alert("Password changed successfully.");
+      } else {
+        Alert.alert("Success", "Password changed successfully.");
+      }
     } catch (error: any) {
       setPasswordError(error.message || "Failed to change password.");
     } finally {
