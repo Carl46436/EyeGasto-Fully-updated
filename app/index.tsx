@@ -7,6 +7,7 @@ import LoginScreen from "./components/LoginScreen";
 import RegisterScreen from "./components/RegisterScreen";
 import EmailConfirmedScreen from "./components/EmailConfirmedScreen";
 import ResetPasswordScreen from "./components/ResetPasswordScreen";
+import VerifyEmailOtpScreen from "./components/VerifyEmailOtpScreen";
 import DashboardScreen from "./components/DashboardScreen";
 import LoadingScreen from "./components/LoadingScreen";
 import ErrorAlert from "./components/ErrorAlert";
@@ -21,6 +22,7 @@ type Screen =
   | "welcome"
   | "login"
   | "register"
+  | "verifyEmailOtp"
   | "emailConfirmed"
   | "resetPassword"
   | "dashboard";
@@ -36,6 +38,7 @@ export default function Index() {
   const [isLoading, setIsLoading] = useState(true);
   const [isExpensesLoading, setIsExpensesLoading] = useState(false);
   const [alertState, setAlertState] = useState<AlertState | null>(null);
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
 
   const showAlert = useCallback((
     message: string,
@@ -233,15 +236,35 @@ export default function Index() {
       }
 
       showAlert(
-        "Registration successful! Please check your email for verification.",
+        "Registration successful! Enter the 6-digit code sent to your email.",
         "success",
       );
-      setTimeout(() => {
-        setAlertState(null);
-        setCurrentScreen("login");
-      }, 2000);
+      setPendingVerificationEmail(email);
+      setCurrentScreen("verifyEmailOtp");
     } catch (err: any) {
       showAlert(err.message || "Registration error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async (token: string) => {
+    try {
+      setIsLoading(true);
+      const result = await authService.verifyEmailOtp(
+        pendingVerificationEmail,
+        token,
+      );
+
+      if (!result.success || !result.user) {
+        throw new Error(result.error || "Verification failed");
+      }
+
+      setPendingVerificationEmail("");
+      setUser(result.user);
+      setCurrentScreen("dashboard");
+      showAlert("Email verified successfully.", "success");
+      await loadExpensesForUser(result.user);
     } finally {
       setIsLoading(false);
     }
@@ -539,6 +562,14 @@ export default function Index() {
           onRegister={handleRegister}
           onBackPress={() => setCurrentScreen("welcome")}
           onLoginPress={() => setCurrentScreen("login")}
+        />
+      )}
+
+      {currentScreen === "verifyEmailOtp" && (
+        <VerifyEmailOtpScreen
+          email={pendingVerificationEmail}
+          onBackPress={() => setCurrentScreen("register")}
+          onVerify={handleVerifyEmailOtp}
         />
       )}
 

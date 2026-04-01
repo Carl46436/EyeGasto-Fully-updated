@@ -104,6 +104,31 @@ class AuthService {
     }
   }
 
+  async verifyEmailOtp(
+    email: string,
+    token: string,
+  ): Promise<{ success: boolean; error?: string; user?: User }> {
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: "signup",
+      });
+
+      if (error || !data.user) {
+        return {
+          success: false,
+          error: error?.message || "Verification failed",
+        };
+      }
+
+      const user = this.mapSupabaseUser(data.user);
+      return { success: true, user };
+    } catch (error: any) {
+      return { success: false, error: error.message || "Verification failed" };
+    }
+  }
+
   async getCurrentUser(): Promise<User | null> {
     try {
       const { data, error } = await supabase.auth.getUser();
