@@ -1209,7 +1209,9 @@
         <View style={styles.backgroundOrbTwo} />
 
         <View style={[styles.header, isCompact && styles.headerCompact]}>
-          <View style={styles.headerLeft}>
+          <View
+            style={[styles.headerLeft, isVeryCompact && styles.headerLeftCompact]}
+          >
             <View style={styles.headerBrandBadge}>
               <LinearGradient
                 colors={["#67E8F9", "#38BDF8", "#2563EB"]}
@@ -1233,6 +1235,7 @@
           <TouchableOpacity
             style={[
               styles.themeToggle,
+              isVeryCompact && styles.themeToggleCompact,
               {
                 backgroundColor: theme.mutedSurface,
                 borderColor: theme.cardBorder,
@@ -1347,11 +1350,16 @@
 
           <ScrollView
             style={[styles.scroll, useSidebarNavigation && styles.scrollWeb]}
-            contentContainerStyle={[
-              styles.scrollContent,
-              useSidebarNavigation && styles.scrollContentWeb,
-            ]}
-            showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            activeTab === "profile" && styles.scrollContentProfile,
+            activeTab === "profile" &&
+              !useSidebarNavigation &&
+              isCompact &&
+              styles.scrollContentProfileCompact,
+            useSidebarNavigation && styles.scrollContentWeb,
+          ]}
+          showsVerticalScrollIndicator={false}
           >
             <Animated.View
               style={{
@@ -2973,7 +2981,7 @@
                       ]}
                       onPress={() => setInfoSheet("terms")}
                     >
-                      <View>
+                      <View style={styles.legalCopy}>
                         <Text style={[styles.legalTitle, { color: theme.title }]}>
                           Terms and Conditions
                         </Text>
@@ -2984,11 +2992,13 @@
                           responsibility.
                         </Text>
                       </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color="#7DD3FC"
-                      />
+                      <View style={styles.legalIconWrap}>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={18}
+                          color="#7DD3FC"
+                        />
+                      </View>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -3001,7 +3011,7 @@
                       ]}
                       onPress={() => setInfoSheet("privacy")}
                     >
-                      <View>
+                      <View style={styles.legalCopy}>
                         <Text style={[styles.legalTitle, { color: theme.title }]}>
                           Privacy Policy
                         </Text>
@@ -3011,11 +3021,13 @@
                           How profile details, expenses, and receipts are handled.
                         </Text>
                       </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color="#7DD3FC"
-                      />
+                      <View style={styles.legalIconWrap}>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={18}
+                          color="#7DD3FC"
+                        />
+                      </View>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -3028,7 +3040,7 @@
                       ]}
                       onPress={() => setInfoSheet("faq")}
                     >
-                      <View>
+                      <View style={styles.legalCopy}>
                         <Text style={[styles.legalTitle, { color: theme.title }]}>
                           FAQ
                         </Text>
@@ -3039,11 +3051,13 @@
                           recurring plans.
                         </Text>
                       </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color="#7DD3FC"
-                      />
+                      <View style={styles.legalIconWrap}>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={18}
+                          color="#7DD3FC"
+                        />
+                      </View>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -3056,7 +3070,7 @@
                       ]}
                       onPress={() => setInfoSheet("about")}
                     >
-                      <View>
+                      <View style={styles.legalCopy}>
                         <Text style={[styles.legalTitle, { color: theme.title }]}>
                           About EyeGasto
                         </Text>
@@ -3066,11 +3080,13 @@
                           Product purpose and what makes this tracker different.
                         </Text>
                       </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color="#7DD3FC"
-                      />
+                      <View style={styles.legalIconWrap}>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={18}
+                          color="#7DD3FC"
+                        />
+                      </View>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -3083,7 +3099,7 @@
                       ]}
                       onPress={handleContactSupport}
                     >
-                      <View>
+                      <View style={styles.legalCopy}>
                         <Text style={[styles.legalTitle, { color: theme.title }]}>
                           Contact Support
                         </Text>
@@ -3094,7 +3110,9 @@
                           account.
                         </Text>
                       </View>
-                      <Ionicons name="mail-outline" size={18} color="#7DD3FC" />
+                      <View style={styles.legalIconWrap}>
+                        <Ionicons name="mail-outline" size={18} color="#7DD3FC" />
+                      </View>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -3107,7 +3125,7 @@
                       ]}
                       onPress={handleReportBug}
                     >
-                      <View>
+                      <View style={styles.legalCopy}>
                         <Text style={[styles.legalTitle, { color: theme.title }]}>
                           Report a Bug
                         </Text>
@@ -3118,7 +3136,9 @@
                           expected.
                         </Text>
                       </View>
-                      <Ionicons name="bug-outline" size={18} color="#7DD3FC" />
+                      <View style={styles.legalIconWrap}>
+                        <Ionicons name="bug-outline" size={18} color="#7DD3FC" />
+                      </View>
                     </TouchableOpacity>
 
                     <View
@@ -3130,22 +3150,24 @@
                         },
                       ]}
                     >
-                      <View>
-                        <Text style={[styles.legalTitle, { color: theme.title }]}>
-                          App Version
-                        </Text>
+                    <View style={styles.legalCopy}>
+                      <Text style={[styles.legalTitle, { color: theme.title }]}>
+                        App Version
+                      </Text>
                         <Text
                           style={[styles.legalSubtitle, { color: theme.muted }]}
                         >
                           Version {APP_VERSION}
                         </Text>
                       </View>
+                    <View style={styles.legalIconWrap}>
                       <Ionicons
                         name="information-circle-outline"
                         size={18}
                         color="#7DD3FC"
                       />
                     </View>
+                  </View>
                   </View>
 
                   <TouchableOpacity
@@ -3627,12 +3649,19 @@
           visible={Boolean(infoSheet)}
           onRequestClose={() => setInfoSheet(null)}
         >
-          <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.modalBackdrop,
+              isCompact && styles.infoModalBackdropCompact,
+            ]}
+          >
             <BlurView
               intensity={34}
               tint={themeMode === "light" ? "light" : "dark"}
               style={[
                 styles.infoCard,
+                isCompact && styles.infoCardCompact,
+                isCompact && styles.infoCardBottomSheet,
                 {
                   backgroundColor: theme.cardBackground,
                   borderColor: theme.cardBorder,
@@ -3642,14 +3671,67 @@
               <Text style={[styles.modalTitle, { color: theme.title }]}>
                 {infoSheet ? infoContent[infoSheet].title : ""}
               </Text>
-              {infoSheet === "faq" ? (
-                <View style={styles.infoStack}>
-                  {infoContent.faq.items.map((item, index) => {
-                    const expanded = expandedFaqIndex === index;
+              <ScrollView
+                style={styles.infoBodyScroll}
+                contentContainerStyle={styles.infoBodyContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {infoSheet === "faq" ? (
+                  <View style={styles.infoStack}>
+                    {infoContent.faq.items.map((item, index) => {
+                      const expanded = expandedFaqIndex === index;
 
-                    return (
-                      <TouchableOpacity
-                        key={item.question}
+                      return (
+                        <TouchableOpacity
+                          key={item.question}
+                          style={[
+                            styles.infoSectionCard,
+                            {
+                              backgroundColor: theme.mutedSurface,
+                              borderColor: theme.cardBorder,
+                            },
+                          ]}
+                          activeOpacity={0.88}
+                          onPress={() =>
+                            setExpandedFaqIndex((current) =>
+                              current === index ? null : index,
+                            )
+                          }
+                        >
+                          <View style={styles.infoQuestionRow}>
+                            <Text
+                              style={[
+                                styles.infoSectionTitle,
+                                { color: theme.title },
+                              ]}
+                            >
+                              {item.question}
+                            </Text>
+                            <Ionicons
+                              name={expanded ? "remove-outline" : "add-outline"}
+                              size={18}
+                              color={theme.accent}
+                            />
+                          </View>
+                          {expanded ? (
+                            <Text
+                              style={[
+                                styles.infoSectionBody,
+                                { color: theme.text },
+                              ]}
+                            >
+                              {item.answer}
+                            </Text>
+                          ) : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : infoSheet ? (
+                  <View style={styles.infoStack}>
+                    {infoContent[infoSheet].sections.map((section) => (
+                      <View
+                        key={section.heading}
                         style={[
                           styles.infoSectionCard,
                           {
@@ -3657,69 +3739,22 @@
                             borderColor: theme.cardBorder,
                           },
                         ]}
-                        activeOpacity={0.88}
-                        onPress={() =>
-                          setExpandedFaqIndex((current) =>
-                            current === index ? null : index,
-                          )
-                        }
                       >
-                        <View style={styles.infoQuestionRow}>
-                          <Text
-                            style={[
-                              styles.infoSectionTitle,
-                              { color: theme.title },
-                            ]}
-                          >
-                            {item.question}
-                          </Text>
-                          <Ionicons
-                            name={expanded ? "remove-outline" : "add-outline"}
-                            size={18}
-                            color={theme.accent}
-                          />
-                        </View>
-                        {expanded ? (
-                          <Text
-                            style={[
-                              styles.infoSectionBody,
-                              { color: theme.text },
-                            ]}
-                          >
-                            {item.answer}
-                          </Text>
-                        ) : null}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : infoSheet ? (
-                <View style={styles.infoStack}>
-                  {infoContent[infoSheet].sections.map((section) => (
-                    <View
-                      key={section.heading}
-                      style={[
-                        styles.infoSectionCard,
-                        {
-                          backgroundColor: theme.mutedSurface,
-                          borderColor: theme.cardBorder,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.infoSectionTitle, { color: theme.title }]}
-                      >
-                        {section.heading}
-                      </Text>
-                      <Text
-                        style={[styles.infoSectionBody, { color: theme.text }]}
-                      >
-                        {section.body}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
+                        <Text
+                          style={[styles.infoSectionTitle, { color: theme.title }]}
+                        >
+                          {section.heading}
+                        </Text>
+                        <Text
+                          style={[styles.infoSectionBody, { color: theme.text }]}
+                        >
+                          {section.body}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </ScrollView>
               <TouchableOpacity
                 style={styles.primaryButton}
                 onPress={() => setInfoSheet(null)}
@@ -3770,6 +3805,10 @@
       alignItems: "center",
       gap: 12,
       flex: 1,
+      minWidth: 0,
+    },
+    headerLeftCompact: {
+      alignItems: "flex-start",
     },
     headerBrandBadge: {
       width: 48,
@@ -3792,9 +3831,15 @@
     headerBrandCopy: {
       flex: 1,
       justifyContent: "center",
+      minWidth: 0,
     },
     headerTitle: { fontSize: 24, fontWeight: "900", color: "#F8FAFC" },
-    headerSubtitle: { marginTop: 3, fontSize: 12, color: "#64748B" },
+    headerSubtitle: {
+      marginTop: 3,
+      fontSize: 12,
+      color: "#64748B",
+      flexShrink: 1,
+    },
     headerBadge: {
       borderRadius: 999,
       paddingHorizontal: 11,
@@ -3825,6 +3870,10 @@
     themeToggleText: {
       fontSize: 12,
       fontWeight: "800",
+    },
+    themeToggleCompact: {
+      marginTop: 4,
+      alignSelf: "flex-end",
     },
     avatarFallback: { alignItems: "center", justifyContent: "center" },
     avatarText: { color: "#020617", fontWeight: "900" },
@@ -3911,6 +3960,14 @@
       flex: 1,
     },
     scrollContent: { paddingHorizontal: 20, paddingBottom: 120, gap: 14 },
+    scrollContentProfile: {
+      paddingTop: 8,
+      paddingBottom: 156,
+    },
+    scrollContentProfileCompact: {
+      paddingTop: 16,
+      paddingBottom: 188,
+    },
     scrollContentWeb: {
       paddingHorizontal: 0,
       paddingBottom: 32,
@@ -4623,13 +4680,24 @@
       justifyContent: "space-between",
       gap: 12,
     },
+    legalCopy: {
+      flex: 1,
+      minWidth: 0,
+      paddingRight: 4,
+    },
+    legalIconWrap: {
+      width: 28,
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    },
     legalTitle: { fontSize: 16, fontWeight: "800", color: "#F8FAFC" },
     legalSubtitle: {
       marginTop: 4,
-      maxWidth: 260,
       color: "#94A3B8",
       fontSize: 13,
       lineHeight: 18,
+      flexShrink: 1,
     },
     logoutButton: {
       marginTop: 14,
@@ -4687,6 +4755,13 @@
       alignItems: "center",
       justifyContent: "center",
       padding: 20,
+    },
+    infoModalBackdropCompact: {
+      justifyContent: "flex-end",
+      alignItems: "stretch",
+      paddingHorizontal: 0,
+      paddingTop: 72,
+      paddingBottom: 0,
     },
     modalCard: {
       width: "100%",
@@ -4779,11 +4854,29 @@
     infoCard: {
       width: "100%",
       maxWidth: 460,
+      maxHeight: "80%",
       borderRadius: 24,
       padding: 22,
       overflow: "hidden",
       borderWidth: 1,
       borderColor: "rgba(148, 163, 184, 0.12)",
+    },
+    infoCardCompact: {
+      maxHeight: "78%",
+      padding: 18,
+      borderRadius: 20,
+    },
+    infoCardBottomSheet: {
+      maxWidth: "100%",
+      width: "100%",
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
+      borderBottomLeftRadius: 0,
+      borderBottomRightRadius: 0,
+      paddingTop: 18,
+      paddingHorizontal: 20,
+      paddingBottom: Platform.OS === "android" ? 28 : 24,
+      borderBottomWidth: 0,
     },
     infoBody: {
       marginTop: 14,
@@ -4792,9 +4885,15 @@
       color: "#CBD5E1",
       marginBottom: 18,
     },
-    infoStack: {
+    infoBodyScroll: {
       marginTop: 14,
-      marginBottom: 18,
+      flexGrow: 0,
+      flexShrink: 1,
+    },
+    infoBodyContent: {
+      paddingBottom: 18,
+    },
+    infoStack: {
       gap: 10,
     },
     infoSectionCard: {
@@ -4866,4 +4965,3 @@
       color: "#94A3B8",
     },
   });
- 

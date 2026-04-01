@@ -80,7 +80,7 @@ export default function WelcomeScreen({
 
           <BlurView intensity={28} tint="dark" style={styles.mobilePreview}>
             <View style={styles.mobilePreviewHeader}>
-              <Text style={styles.visualEyebrow}>Quick OhLook</Text>
+              <Text style={styles.visualEyebrow}>Quick Look</Text>
               <Text style={styles.mobilePreviewTitle}>
                 See where your money goes.
               </Text>
