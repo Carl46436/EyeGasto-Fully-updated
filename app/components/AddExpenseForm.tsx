@@ -31,6 +31,7 @@ interface Props {
   mode?: "dark" | "light";
   categories?: string[];
   onSuccess?: () => void;
+  embedded?: boolean;
 }
 
 const DEFAULT_CATEGORIES = [
@@ -51,6 +52,7 @@ export default function AddExpenseForm({
   mode = "dark",
   categories = [],
   onSuccess,
+  embedded = false,
 }: Props) {
   const { width } = useWindowDimensions();
   const isCompact = width < 420;
@@ -145,14 +147,290 @@ export default function AddExpenseForm({
 
   return (
     <KeyboardAvoidingView
-      style={styles.wrapper}
+      style={[styles.wrapper, embedded && styles.wrapperEmbedded]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <BlurView
-        intensity={28}
-        tint={isLight ? "light" : "dark"}
-        style={[styles.container, isLight && styles.containerLight]}
-      >
+      {embedded ? (
+        <View style={[styles.containerEmbedded, isLight && styles.containerEmbeddedLight]}>
+          <View style={[styles.row, isCompact && styles.rowStack]}>
+            <View style={styles.inputBlock}>
+              <Text style={[styles.label, isLight && styles.labelLight]}>
+                Expense name
+              </Text>
+              <TextInput
+                style={[styles.input, isLight && styles.inputLight]}
+                placeholder="Dinner with Kean"
+                placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
+                value={description}
+                onChangeText={setDescription}
+              />
+            </View>
+            <View
+              style={[
+                styles.inputBlock,
+                styles.amountBlock,
+                isCompact && styles.amountBlockCompact,
+              ]}
+            >
+              <Text style={[styles.label, isLight && styles.labelLight]}>
+                Amount
+              </Text>
+              <TextInput
+                style={[styles.input, isLight && styles.inputLight]}
+                placeholder="0.00"
+                placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+
+          <View style={styles.row}>
+            <View style={styles.inputBlock}>
+              <Text style={[styles.label, isLight && styles.labelLight]}>
+                Category
+              </Text>
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={[styles.dropdownField, isLight && styles.inputLight]}
+                onPress={() => setShowCategoryMenu((value) => !value)}
+              >
+                <Text
+                  style={[
+                    styles.dropdownValue,
+                    !category && styles.dropdownPlaceholder,
+                    isLight && !category && styles.dropdownPlaceholderLight,
+                    isLight && category && styles.dropdownValueLight,
+                  ]}
+                >
+                  {category || "Select a category"}
+                </Text>
+                <Ionicons
+                  name={showCategoryMenu ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={isLight ? "#64748B" : "#94A3B8"}
+                />
+              </TouchableOpacity>
+              {showCategoryMenu ? (
+                <View
+                  style={[
+                    styles.dropdownMenu,
+                    isLight && styles.dropdownMenuLight,
+                  ]}
+                >
+                  <ScrollView
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator={false}
+                    style={styles.dropdownScroll}
+                  >
+                    {categoryOptions.map((option) => {
+                      const selected = category === option;
+
+                      return (
+                        <TouchableOpacity
+                          key={option}
+                          activeOpacity={0.82}
+                          style={[
+                            styles.dropdownOption,
+                            selected && styles.dropdownOptionActive,
+                          ]}
+                          onPress={() => {
+                            setCategory(option);
+                            setShowCategoryMenu(false);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.dropdownOptionText,
+                              isLight && styles.dropdownOptionTextLight,
+                              selected && styles.dropdownOptionTextActive,
+                              isLight &&
+                                selected &&
+                                styles.dropdownOptionTextActiveLight,
+                            ]}
+                          >
+                            {option}
+                          </Text>
+                          {selected ? (
+                            <Ionicons
+                              name="checkmark"
+                              size={16}
+                              color="#22D3EE"
+                            />
+                          ) : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={styles.inputBlock}>
+            <Text style={[styles.label, isLight && styles.labelLight]}>
+              Notes
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                styles.notesInput,
+                isLight && styles.inputLight,
+              ]}
+              placeholder="Short context, merchant, or reminder"
+              placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+            />
+          </View>
+
+          <View
+            style={[styles.receiptCard, isLight && styles.receiptCardLight]}
+          >
+            <View style={styles.receiptHeader}>
+              <View>
+                <Text
+                  style={[
+                    styles.receiptTitle,
+                    isLight && styles.receiptTitleLight,
+                  ]}
+                >
+                  Receipt image
+                </Text>
+                <Text
+                  style={[
+                    styles.receiptSubtitle,
+                    isLight && styles.receiptSubtitleLight,
+                  ]}
+                >
+                  Attach a receipt now or add one later while editing.
+                </Text>
+              </View>
+            </View>
+
+            {imageUri ? (
+              <View style={styles.previewShell}>
+                <Image
+                  source={{ uri: imageUri }}
+                  style={styles.previewImage}
+                  contentFit="cover"
+                />
+                <TouchableOpacity
+                  style={styles.removeImageButton}
+                  onPress={() => setImageUri(undefined)}
+                >
+                  <Ionicons name="close" size={16} color="#F8FAFC" />
+                </TouchableOpacity>
+                <View style={styles.imageActionPill}>
+                  <Ionicons name="checkmark-circle" size={14} color="#67E8F9" />
+                  <Text style={styles.imageActionText}>Receipt attached</Text>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={[
+                  styles.previewPlaceholder,
+                  isLight && styles.previewPlaceholderLight,
+                ]}
+                onPress={handlePickImage}
+              >
+                <Ionicons
+                  name="cloud-upload-outline"
+                  size={24}
+                  color={isLight ? "#0284C7" : "#7DD3FC"}
+                />
+                <Text
+                  style={[
+                    styles.previewPlaceholderTitle,
+                    isLight && styles.previewPlaceholderTitleLight,
+                  ]}
+                >
+                  Add a receipt
+                </Text>
+                <Text
+                  style={[
+                    styles.previewPlaceholderText,
+                    isLight && styles.previewPlaceholderTextLight,
+                  ]}
+                >
+                  PNG or JPG images work best for quick expense proof.
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={[
+              styles.recurringToggle,
+              isLight && styles.recurringToggleLight,
+              isRecurringMonthly && styles.recurringToggleActive,
+            ]}
+            onPress={() => setIsRecurringMonthly((value) => !value)}
+          >
+            <View style={styles.recurringCopy}>
+              <Text
+                style={[
+                  styles.recurringTitle,
+                  isLight && styles.recurringTitleLight,
+                ]}
+              >
+                Repeat monthly
+              </Text>
+              <Text
+                style={[
+                  styles.recurringSubtitle,
+                  isLight && styles.recurringSubtitleLight,
+                ]}
+              >
+                Save this as a recurring monthly expense plan.
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.recurringSwitch,
+                isRecurringMonthly && styles.recurringSwitchActive,
+              ]}
+            >
+              <View
+                style={[
+                  styles.recurringKnob,
+                  isRecurringMonthly && styles.recurringKnobActive,
+                ]}
+              />
+            </View>
+          </TouchableOpacity>
+
+          <LinearGradient
+            colors={["#67E8F9", "#38BDF8", "#2563EB"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.submitWrap}
+          >
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.submitButton}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+            >
+              <View style={styles.submitIconPill}>
+                <Ionicons name="add" size={16} color="#082F49" />
+              </View>
+              <Text style={styles.submitButtonText}>
+                {isSubmitting ? "Saving expense..." : "Add expense"}
+              </Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+      ) : (
+        <BlurView
+          intensity={28}
+          tint={isLight ? "light" : "dark"}
+          style={[styles.container, isLight && styles.containerLight]}
+        >
         <View style={[styles.row, isCompact && styles.rowStack]}>
           <View style={styles.inputBlock}>
             <Text style={[styles.label, isLight && styles.labelLight]}>
@@ -417,7 +695,8 @@ export default function AddExpenseForm({
             </Text>
           </LinearGradient>
         </TouchableOpacity>
-      </BlurView>
+        </BlurView>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -425,6 +704,9 @@ export default function AddExpenseForm({
 const styles = StyleSheet.create({
   wrapper: {
     marginTop: 16,
+  },
+  wrapperEmbedded: {
+    marginTop: 0,
   },
   container: {
     borderRadius: 24,
@@ -434,6 +716,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(8, 15, 30, 0.86)",
     gap: 12,
     overflow: "hidden",
+  },
+  containerEmbedded: {
+    gap: 12,
+  },
+  containerEmbeddedLight: {
+    backgroundColor: "transparent",
   },
   containerLight: {
     borderColor: "rgba(148, 163, 184, 0.16)",

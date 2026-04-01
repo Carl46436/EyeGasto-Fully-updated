@@ -129,6 +129,52 @@ class AuthService {
     }
   }
 
+  async sendRecoveryOtp(
+    email: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+
+      if (error) {
+        return {
+          success: false,
+          error: error.message || "Failed to send recovery code",
+        };
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || "Failed to send recovery code",
+      };
+    }
+  }
+
+  async verifyRecoveryOtp(
+    email: string,
+    token: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: "recovery",
+      });
+
+      if (error) {
+        return {
+          success: false,
+          error: error.message || "Verification failed",
+        };
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message || "Verification failed" };
+    }
+  }
+
   async getCurrentUser(): Promise<User | null> {
     try {
       const { data, error } = await supabase.auth.getUser();

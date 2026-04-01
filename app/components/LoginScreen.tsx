@@ -15,19 +15,19 @@ import {
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { buildAuthRedirectUrl } from "../services/authRedirect";
-import { supabase } from "../services/supabaseClient";
 
 interface Props {
   onLogin: (email: string, password: string) => void;
   onBackPress: () => void;
   onRegisterPress: () => void;
+  onForgotPassword: (email: string) => Promise<void>;
 }
 
 export default function LoginScreen({
   onLogin,
   onBackPress,
   onRegisterPress,
+  onForgotPassword,
 }: Props) {
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === "web" && width >= 960;
@@ -77,19 +77,16 @@ export default function LoginScreen({
       return;
     }
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: buildAuthRedirectUrl("reset-password"),
-    });
+    try {
+      await onForgotPassword(email.trim());
+    } catch (error: any) {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.alert(error.message || "Failed to send reset code.");
+        return;
+      }
 
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.alert(error ? error.message : "Password reset email sent.");
-      return;
+      Alert.alert("Reset failed", error.message || "Failed to send reset code.");
     }
-
-    Alert.alert(
-      error ? "Reset failed" : "Check your inbox",
-      error ? error.message : "Password reset email sent.",
-    );
   };
 
   return (

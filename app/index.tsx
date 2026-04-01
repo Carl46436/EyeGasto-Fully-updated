@@ -23,6 +23,7 @@ type Screen =
   | "login"
   | "register"
   | "verifyEmailOtp"
+  | "verifyRecoveryOtp"
   | "emailConfirmed"
   | "resetPassword"
   | "dashboard";
@@ -39,6 +40,7 @@ export default function Index() {
   const [isExpensesLoading, setIsExpensesLoading] = useState(false);
   const [alertState, setAlertState] = useState<AlertState | null>(null);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
+  const [pendingRecoveryEmail, setPendingRecoveryEmail] = useState("");
 
   const showAlert = useCallback((
     message: string,
@@ -236,7 +238,7 @@ export default function Index() {
       }
 
       showAlert(
-        "Registration successful! Enter the 6-digit code sent to your email.",
+        "Registration successful! Enter the 8-digit code sent to your email.",
         "success",
       );
       setPendingVerificationEmail(email);
@@ -265,6 +267,37 @@ export default function Index() {
       setCurrentScreen("dashboard");
       showAlert("Email verified successfully.", "success");
       await loadExpensesForUser(result.user);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (email: string) => {
+    const result = await authService.sendRecoveryOtp(email);
+
+    if (!result.success) {
+      throw new Error(result.error || "Failed to send reset code.");
+    }
+
+    setPendingRecoveryEmail(email);
+    setCurrentScreen("verifyRecoveryOtp");
+    showAlert("Reset code sent. Enter the 8-digit code from your email.", "success");
+  };
+
+  const handleVerifyRecoveryOtp = async (token: string) => {
+    try {
+      setIsLoading(true);
+      const result = await authService.verifyRecoveryOtp(
+        pendingRecoveryEmail,
+        token,
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || "Verification failed");
+      }
+
+      setCurrentScreen("resetPassword");
+      showAlert("Code verified. Set your new password.", "success");
     } finally {
       setIsLoading(false);
     }
@@ -391,6 +424,7 @@ export default function Index() {
       await supabase.auth.signOut();
       setUser(null);
       setExpenses([]);
+      setPendingRecoveryEmail("");
       await resetDashboardViewPreference();
       setCurrentScreen("login");
       showAlert("Password updated. Please log in with your new password.", "success");
@@ -554,6 +588,7 @@ export default function Index() {
           onLogin={handleLogin}
           onBackPress={() => setCurrentScreen("welcome")}
           onRegisterPress={() => setCurrentScreen("register")}
+          onForgotPassword={handleForgotPassword}
         />
       )}
 
@@ -570,6 +605,20 @@ export default function Index() {
           email={pendingVerificationEmail}
           onBackPress={() => setCurrentScreen("register")}
           onVerify={handleVerifyEmailOtp}
+        />
+      )}
+
+      {currentScreen === "verifyRecoveryOtp" && (
+        <VerifyEmailOtpScreen
+          email={pendingRecoveryEmail}
+          onBackPress={() => setCurrentScreen("login")}
+          onVerify={handleVerifyRecoveryOtp}
+          eyebrow="Password recovery"
+          title="Enter your 8-digit reset code."
+          subtitle={`We sent a reset code to ${pendingRecoveryEmail}. Enter it here to continue to your password reset.`}
+          cardTitle="Verify reset code"
+          cardSubtitle="Check your inbox for the 8-digit reset code from EyeGasto."
+          buttonLabel="Continue"
         />
       )}
 

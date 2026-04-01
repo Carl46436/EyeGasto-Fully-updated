@@ -20,12 +20,24 @@ interface Props {
   email: string;
   onBackPress: () => void;
   onVerify: (token: string) => Promise<void>;
+  eyebrow?: string;
+  title?: string;
+  subtitle?: string;
+  cardTitle?: string;
+  cardSubtitle?: string;
+  buttonLabel?: string;
 }
 
 export default function VerifyEmailOtpScreen({
   email,
   onBackPress,
   onVerify,
+  eyebrow = "Email verification",
+  title = "Enter your 8-digit code.",
+  subtitle,
+  cardTitle = "Verify email",
+  cardSubtitle = "Check your inbox for the 8-digit code from EyeGasto.",
+  buttonLabel = "Verify email",
 }: Props) {
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === "web" && width >= 960;
@@ -126,21 +138,19 @@ export default function VerifyEmailOtpScreen({
                 </View>
               </View>
 
-              <Text style={styles.eyebrow}>Email verification</Text>
+              <Text style={styles.eyebrow}>{eyebrow}</Text>
               <Text style={[styles.title, isWebWide && styles.titleWide]}>
-                Enter your 8-digit code.
+                {title}
               </Text>
               <Text style={styles.subtitle}>
-                We sent a verification code to {email}. Enter it here to finish
-                creating your account.
+                {subtitle ??
+                  `We sent a verification code to ${email}. Enter it here to finish creating your account.`}
               </Text>
             </View>
 
             <BlurView intensity={30} tint="dark" style={styles.card}>
-              <Text style={styles.cardTitle}>Verify email</Text>
-              <Text style={styles.cardSubtitle}>
-                Check your inbox for the 8-digit code from EyeGasto.
-              </Text>
+              <Text style={styles.cardTitle}>{cardTitle}</Text>
+              <Text style={styles.cardSubtitle}>{cardSubtitle}</Text>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Verification code</Text>
@@ -174,7 +184,7 @@ export default function VerifyEmailOtpScreen({
                 disabled={isSubmitting}
               >
                 <Text style={styles.primaryButtonText}>
-                  {isSubmitting ? "Verifying..." : "Verify email"}
+                  {isSubmitting ? "Verifying..." : buttonLabel}
                 </Text>
                 <Ionicons name="arrow-forward" size={16} color="#020617" />
               </TouchableOpacity>
