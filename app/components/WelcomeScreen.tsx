@@ -237,7 +237,6 @@ export default function WelcomeScreen({
                   style={[styles.mockDot, { backgroundColor: "#38BDF8" }]}
                 />
               </View>
-              <Text style={styles.mockTitle}>Live dashboard</Text>
             </View>
 
             <View style={styles.mockBody}>

@@ -9,19 +9,14 @@ import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Expense } from "../types/index";
+import { CurrencyCode, formatCurrency } from "../services/currency";
 
 type Props = Omit<Expense, "id"> & {
   onDelete?: () => void;
   onPress?: () => void;
   mode?: "dark" | "light";
+  currencyCode?: CurrencyCode;
 };
-
-const formatAmount = (amount: number) =>
-  new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    maximumFractionDigits: 2,
-  }).format(amount);
 
 export default function ExpenseItem({
   description,
@@ -34,6 +29,7 @@ export default function ExpenseItem({
   onDelete,
   onPress,
   mode = "dark",
+  currencyCode = "PHP",
 }: Props) {
   const isLight = mode === "light";
 
@@ -108,7 +104,7 @@ export default function ExpenseItem({
 
           <View style={styles.amountContainer}>
             <Text style={[styles.amount, isLight && styles.amountLight]}>
-              {formatAmount(amount)}
+              {formatCurrency(amount, currencyCode)}
             </Text>
             <Text style={[styles.amountMeta, isLight && styles.amountMetaLight]}>
               {isPending

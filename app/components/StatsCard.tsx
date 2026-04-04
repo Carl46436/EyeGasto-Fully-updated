@@ -2,6 +2,7 @@ import React from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+import { CurrencyCode, formatCurrency } from "../services/currency";
 
 interface Props {
   title: string;
@@ -9,14 +10,8 @@ interface Props {
   type: "expense" | "income";
   period: "month" | "total";
   mode?: "dark" | "light";
+  currencyCode?: CurrencyCode;
 }
-
-const formatAmount = (amount: number) =>
-  new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    maximumFractionDigits: 2,
-  }).format(amount);
 
 export default function StatsCard({
   title,
@@ -24,6 +19,7 @@ export default function StatsCard({
   type,
   period,
   mode = "dark",
+  currencyCode = "PHP",
 }: Props) {
   const isExpense = type === "expense";
   const accent = isExpense ? ["#7DD3FC", "#38BDF8"] : ["#86EFAC", "#34D399"];
@@ -44,7 +40,7 @@ export default function StatsCard({
           end={{ x: 1, y: 1 }}
           style={styles.amountPill}
         >
-          <Text style={styles.amount}>{formatAmount(amount)}</Text>
+          <Text style={styles.amount}>{formatCurrency(amount, currencyCode)}</Text>
         </LinearGradient>
         <Text style={[styles.metaLabel, isLight && styles.metaLabelLight]}>
           {period === "total" ? "All recorded expenses" : "Live monthly total"}

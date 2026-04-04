@@ -41,6 +41,8 @@ export default function Index() {
   const [alertState, setAlertState] = useState<AlertState | null>(null);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [pendingRecoveryEmail, setPendingRecoveryEmail] = useState("");
+  const [shouldShowGuideForThisSession, setShouldShowGuideForThisSession] =
+    useState(false);
 
   const showAlert = useCallback((
     message: string,
@@ -70,21 +72,24 @@ export default function Index() {
 
   const loadExpensesForUser = useCallback(async (baseUser: User) => {
     setIsExpensesLoading(true);
+    try {
+      const syncResult = await expenseService.syncRecurringExpenses(baseUser);
+      const resolvedUser = syncResult.user ?? baseUser;
+      setUser(resolvedUser);
 
-    const syncResult = await expenseService.syncRecurringExpenses(baseUser);
-    const resolvedUser = syncResult.user ?? baseUser;
-    setUser(resolvedUser);
+      const userExpenses = await expenseService.getExpenses();
+      setExpenses(userExpenses);
 
-    const userExpenses = await expenseService.getExpenses();
-    setExpenses(userExpenses);
-
-    if (syncResult.syncedCount > 0) {
-      showAlert(
-        `${syncResult.syncedCount} recurring expense${
-          syncResult.syncedCount === 1 ? "" : "s"
-        } added automatically.`,
-        "success",
-      );
+      if (syncResult.syncedCount > 0) {
+        showAlert(
+          `${syncResult.syncedCount} recurring expense${
+            syncResult.syncedCount === 1 ? "" : "s"
+          } added automatically.`,
+          "success",
+        );
+      }
+    } finally {
+      setIsExpensesLoading(false);
     }
   }, [showAlert]);
 
@@ -171,6 +176,7 @@ export default function Index() {
           await authService.checkAuthStatus();
 
         if (isAuthenticated && currentUser) {
+          setShouldShowGuideForThisSession(false);
           setCurrentScreen("dashboard");
           setIsLoading(false);
           await loadExpensesForUser(currentUser);
@@ -209,6 +215,7 @@ export default function Index() {
         return;
       }
 
+      setShouldShowGuideForThisSession(false);
       setUser(result.user || null);
       setCurrentScreen("dashboard");
       setIsLoading(false);
@@ -263,6 +270,7 @@ export default function Index() {
       }
 
       setPendingVerificationEmail("");
+      setShouldShowGuideForThisSession(true);
       setUser(result.user);
       setCurrentScreen("dashboard");
       showAlert("Email verified successfully.", "success");
@@ -422,6 +430,7 @@ export default function Index() {
       }
 
       await supabase.auth.signOut();
+      setShouldShowGuideForThisSession(false);
       setUser(null);
       setExpenses([]);
       setPendingRecoveryEmail("");
@@ -550,6 +559,7 @@ export default function Index() {
     try {
       setIsLoading(true);
       await authService.logout();
+      setShouldShowGuideForThisSession(false);
       setUser(null);
       setExpenses([]);
       await resetDashboardViewPreference();
@@ -641,6 +651,7 @@ export default function Index() {
           user={user}
           expenses={expenses}
           isExpensesLoading={isExpensesLoading}
+          shouldShowGuideForThisSession={shouldShowGuideForThisSession}
           onAddExpense={handleAddExpense}
           onDeleteExpense={handleDeleteExpense}
           onUpdateExpense={handleUpdateExpense}

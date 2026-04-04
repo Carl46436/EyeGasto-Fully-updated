@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -16,6 +16,7 @@ import { BlurView } from "expo-blur";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { CurrencyCode } from "../services/currency";
 
 interface Props {
   onAdd: (
@@ -32,6 +33,13 @@ interface Props {
   categories?: string[];
   onSuccess?: () => void;
   embedded?: boolean;
+  currencyCode?: CurrencyCode;
+  initialValues?: {
+    description?: string;
+    amount?: number;
+    category?: string;
+    notes?: string;
+  };
 }
 
 const DEFAULT_CATEGORIES = [
@@ -53,14 +61,18 @@ export default function AddExpenseForm({
   categories = [],
   onSuccess,
   embedded = false,
+  currencyCode = "PHP",
+  initialValues,
 }: Props) {
   const { width } = useWindowDimensions();
   const isCompact = width < 420;
   const isLight = mode === "light";
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState("");
-  const [notes, setNotes] = useState("");
+  const [description, setDescription] = useState(initialValues?.description ?? "");
+  const [amount, setAmount] = useState(
+    initialValues?.amount !== undefined ? String(initialValues.amount) : "",
+  );
+  const [category, setCategory] = useState(initialValues?.category ?? "");
+  const [notes, setNotes] = useState(initialValues?.notes ?? "");
   const [imageUri, setImageUri] = useState<string | undefined>();
   const [isRecurringMonthly, setIsRecurringMonthly] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,6 +85,18 @@ export default function AddExpenseForm({
         .filter(Boolean),
     ),
   );
+
+  useEffect(() => {
+    setDescription(initialValues?.description ?? "");
+    setAmount(
+      initialValues?.amount !== undefined ? String(initialValues.amount) : "",
+    );
+    setCategory(initialValues?.category ?? "");
+    setNotes(initialValues?.notes ?? "");
+    setImageUri(undefined);
+    setIsRecurringMonthly(false);
+    setShowCategoryMenu(false);
+  }, [initialValues]);
 
   const handlePickImage = async () => {
     try {
@@ -100,6 +124,34 @@ export default function AddExpenseForm({
     } catch (error) {
       console.error("Failed to pick receipt image", error);
       Alert.alert("Upload failed", "We could not select that image.");
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (permission.status !== "granted") {
+        Alert.alert(
+          "Permission needed",
+          "Camera access is required so you can capture a receipt directly.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.8,
+        aspect: [4, 5],
+      });
+
+      if (!result.canceled) {
+        setImageUri(result.assets[0]?.uri);
+      }
+    } catch (error) {
+      console.error("Failed to capture receipt image", error);
+      Alert.alert("Camera failed", "We could not open the camera.");
     }
   };
 
@@ -173,7 +225,7 @@ export default function AddExpenseForm({
               ]}
             >
               <Text style={[styles.label, isLight && styles.labelLight]}>
-                Amount
+                Amount ({currencyCode})
               </Text>
               <TextInput
                 style={[styles.input, isLight && styles.inputLight]}
@@ -308,6 +360,47 @@ export default function AddExpenseForm({
                   Attach a receipt now or add one later while editing.
                 </Text>
               </View>
+            </View>
+
+            <View style={styles.receiptActionsRow}>
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={[styles.receiptActionButton, isLight && styles.receiptActionButtonLight]}
+                onPress={handleTakePhoto}
+              >
+                <Ionicons
+                  name="camera-outline"
+                  size={16}
+                  color={isLight ? "#0369A1" : "#7DD3FC"}
+                />
+                <Text
+                  style={[
+                    styles.receiptActionText,
+                    isLight && styles.receiptActionTextLight,
+                  ]}
+                >
+                  Take photo
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={[styles.receiptActionButton, isLight && styles.receiptActionButtonLight]}
+                onPress={handlePickImage}
+              >
+                <Ionicons
+                  name="images-outline"
+                  size={16}
+                  color={isLight ? "#0369A1" : "#7DD3FC"}
+                />
+                <Text
+                  style={[
+                    styles.receiptActionText,
+                    isLight && styles.receiptActionTextLight,
+                  ]}
+                >
+                  Choose image
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {imageUri ? (
@@ -451,9 +544,9 @@ export default function AddExpenseForm({
               isCompact && styles.amountBlockCompact,
             ]}
           >
-            <Text style={[styles.label, isLight && styles.labelLight]}>
-              Amount
-            </Text>
+              <Text style={[styles.label, isLight && styles.labelLight]}>
+                Amount ({currencyCode})
+              </Text>
             <TextInput
               style={[styles.input, isLight && styles.inputLight]}
               placeholder="0.00"
@@ -559,8 +652,8 @@ export default function AddExpenseForm({
           />
         </View>
 
-        <View style={[styles.receiptCard, isLight && styles.receiptCardLight]}>
-          <View style={styles.receiptHeader}>
+          <View style={[styles.receiptCard, isLight && styles.receiptCardLight]}>
+            <View style={styles.receiptHeader}>
             <View>
               <Text
                 style={[
@@ -579,7 +672,48 @@ export default function AddExpenseForm({
                 Save a photo with this expense for future proof.
               </Text>
             </View>
-          </View>
+            </View>
+
+            <View style={styles.receiptActionsRow}>
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={[styles.receiptActionButton, isLight && styles.receiptActionButtonLight]}
+                onPress={handleTakePhoto}
+              >
+                <Ionicons
+                  name="camera-outline"
+                  size={16}
+                  color={isLight ? "#0369A1" : "#7DD3FC"}
+                />
+                <Text
+                  style={[
+                    styles.receiptActionText,
+                    isLight && styles.receiptActionTextLight,
+                  ]}
+                >
+                  Take photo
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={[styles.receiptActionButton, isLight && styles.receiptActionButtonLight]}
+                onPress={handlePickImage}
+              >
+                <Ionicons
+                  name="images-outline"
+                  size={16}
+                  color={isLight ? "#0369A1" : "#7DD3FC"}
+                />
+                <Text
+                  style={[
+                    styles.receiptActionText,
+                    isLight && styles.receiptActionTextLight,
+                  ]}
+                >
+                  Choose image
+                </Text>
+              </TouchableOpacity>
+            </View>
 
           {imageUri ? (
             <TouchableOpacity
@@ -855,6 +989,35 @@ const styles = StyleSheet.create({
   },
   receiptHeader: {
     gap: 10,
+  },
+  receiptActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+    flexWrap: "wrap",
+  },
+  receiptActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.2)",
+    backgroundColor: "rgba(15, 23, 42, 0.9)",
+  },
+  receiptActionButtonLight: {
+    borderColor: "rgba(2, 132, 199, 0.18)",
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+  },
+  receiptActionText: {
+    color: "#E2E8F0",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  receiptActionTextLight: {
+    color: "#0F172A",
   },
   receiptTitle: {
     fontSize: 15,

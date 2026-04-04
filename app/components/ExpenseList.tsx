@@ -2,12 +2,16 @@ import React from "react";
 import { View, StyleSheet, Text } from "react-native";
 import ExpenseItem from "./ExpenseItem";
 import { Expense } from "../types/index";
+import { CurrencyCode } from "../services/currency";
 
 interface Props {
   expenses: Expense[];
   onDelete?: (id: string) => void;
   onEdit?: (expense: Expense) => void;
   mode?: "dark" | "light";
+  currencyCode?: CurrencyCode;
+  emptyTitle?: string;
+  emptySubtitle?: string;
 }
 
 export default function ExpenseList({
@@ -15,12 +19,22 @@ export default function ExpenseList({
   onDelete,
   onEdit,
   mode = "dark",
+  currencyCode = "PHP",
+  emptyTitle = "No expenses yet",
+  emptySubtitle = "Add your first expense, attach a receipt, and start building your budget history.",
 }: Props) {
   const isLight = mode === "light";
   if (expenses.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={[styles.emptyText, isLight && styles.emptyTextLight]}>No expenses yet</Text>
+        <Text style={[styles.emptyText, isLight && styles.emptyTextLight]}>
+          {emptyTitle}
+        </Text>
+        <Text
+          style={[styles.emptySubtitle, isLight && styles.emptySubtitleLight]}
+        >
+          {emptySubtitle}
+        </Text>
       </View>
     );
   }
@@ -82,6 +96,7 @@ export default function ExpenseList({
               imageUrl={item.imageUrl}
               isPending={item.isPending}
               mode={mode}
+              currencyCode={currencyCode}
               onDelete={onDelete ? () => onDelete(item.id) : undefined}
               onPress={onEdit ? () => onEdit(item) : undefined}
             />
@@ -140,9 +155,20 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: "#6B7280",
-    fontWeight: "500",
+    fontWeight: "700",
   },
   emptyTextLight: {
+    color: "#64748B",
+  },
+  emptySubtitle: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#94A3B8",
+    textAlign: "center",
+    maxWidth: 280,
+  },
+  emptySubtitleLight: {
     color: "#64748B",
   },
 });
