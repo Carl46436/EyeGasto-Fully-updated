@@ -47,14 +47,14 @@ import {
 import expenseStorage from "../services/expenseStorage";
 import storageService, { StorageKeys } from "../services/storageService";
 
-  interface Props {
-    user: User;
-    expenses: Expense[];
-    isExpensesLoading?: boolean;
-    shouldShowGuideForThisSession?: boolean;
-    onAddExpense: (
-      description: string,
-      amount: number,
+interface Props {
+  user: User;
+  expenses: Expense[];
+  isExpensesLoading?: boolean;
+  shouldShowGuideForThisSession?: boolean;
+  onAddExpense: (
+    description: string,
+    amount: number,
     category?: string,
     notes?: string,
     imageUri?: string,
@@ -130,12 +130,12 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Bills: "receipt-outline",
 };
 
-  export default function DashboardScreen({
-    user,
-    expenses,
-    isExpensesLoading = false,
-    shouldShowGuideForThisSession = false,
-    onAddExpense,
+export default function DashboardScreen({
+  user,
+  expenses,
+  isExpensesLoading = false,
+  shouldShowGuideForThisSession = false,
+  onAddExpense,
   onDeleteExpense,
   onUpdateExpense,
   onUpdateUser,
@@ -165,10 +165,10 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   const [onboardingSeenForUserId, setOnboardingSeenForUserId] = useState<
     string | undefined
   >(undefined);
-    const [showAllExpenses, setShowAllExpenses] = useState(false);
-    const [dateRange, setDateRange] = useState<DateRangeKey>("thisMonth");
-    const [gallerySearchQuery, setGallerySearchQuery] = useState("");
-    const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [showAllExpenses, setShowAllExpenses] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRangeKey>("thisMonth");
+  const [gallerySearchQuery, setGallerySearchQuery] = useState("");
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editDescription, setEditDescription] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editCategory, setEditCategory] = useState("");
@@ -281,20 +281,20 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
     themeMode,
   ]);
 
-    useEffect(() => {
-      if (!isPreferencesReady) {
-        return;
-      }
+  useEffect(() => {
+    if (!isPreferencesReady) {
+      return;
+    }
 
-      setShowGuideCard(
-        shouldShowGuideForThisSession && onboardingSeenForUserId !== user.id,
-      );
-    }, [
-      isPreferencesReady,
-      onboardingSeenForUserId,
-      shouldShowGuideForThisSession,
-      user.id,
-    ]);
+    setShowGuideCard(
+      shouldShowGuideForThisSession && onboardingSeenForUserId !== user.id,
+    );
+  }, [
+    isPreferencesReady,
+    onboardingSeenForUserId,
+    shouldShowGuideForThisSession,
+    user.id,
+  ]);
 
   const formatAmount = useCallback(
     (amount: number) => formatCurrency(amount, preferredCurrency),
@@ -446,8 +446,8 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
     monthlyBudget > 0 ? Math.min(stats.thisMonth / monthlyBudget, 1) : 0;
   const remainingBudget =
     monthlyBudget > 0 ? Math.max(monthlyBudget - stats.thisMonth, 0) : 0;
-    const overspentThisMonth =
-      monthlyBudget > 0 ? Math.max(stats.thisMonth - monthlyBudget, 0) : 0;
+  const overspentThisMonth =
+    monthlyBudget > 0 ? Math.max(stats.thisMonth - monthlyBudget, 0) : 0;
 
   const topCategory =
     Object.entries(categoryBreakdown).sort((a, b) => b[1] - a[1])[0] || null;
@@ -905,7 +905,6 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 
     const objects: string[] = [];
     const pageObjectNumbers: number[] = [];
-    const contentObjectNumbers: number[] = [];
     const fontObjectNumber = 3;
 
     objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
@@ -915,7 +914,6 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
       const pageObjectNumber = 4 + pageIndex * 2;
       const contentObjectNumber = pageObjectNumber + 1;
       pageObjectNumbers.push(pageObjectNumber);
-      contentObjectNumbers.push(contentObjectNumber);
 
       const streamLines = pageLines.map((line, lineIndex) => {
         const y = 760 - lineIndex * 18;
@@ -935,7 +933,11 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
     let pdf = "%PDF-1.4\n";
     const offsets: number[] = [0];
 
-    for (let objectNumber = 1; objectNumber < objects.length; objectNumber += 1) {
+    for (
+      let objectNumber = 1;
+      objectNumber < objects.length;
+      objectNumber += 1
+    ) {
       if (!objects[objectNumber]) continue;
       offsets[objectNumber] = pdf.length;
       pdf += `${objectNumber} 0 obj\n${objects[objectNumber]}\nendobj\n`;
@@ -945,7 +947,11 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
     pdf += `xref\n0 ${objects.length}\n`;
     pdf += "0000000000 65535 f \n";
 
-    for (let objectNumber = 1; objectNumber < objects.length; objectNumber += 1) {
+    for (
+      let objectNumber = 1;
+      objectNumber < objects.length;
+      objectNumber += 1
+    ) {
       const offset = offsets[objectNumber] ?? 0;
       pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
     }
@@ -1437,7 +1443,6 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
             </Text>
           </TouchableOpacity>
         </View>
-
       </View>
 
       <View
@@ -1776,7 +1781,8 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                           >
                             <Ionicons
                               name={
-                                QUICK_ADD_ICONS[item.label] ?? "add-circle-outline"
+                                QUICK_ADD_ICONS[item.label] ??
+                                "add-circle-outline"
                               }
                               size={16}
                               color={theme.accent}
@@ -1817,80 +1823,77 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                   </ScrollView>
                 </View>
 
-                  {(user.recurringExpenses?.length ?? 0) > 0 ? (
-                    <View style={styles.recurringPlansWrap}>
-                      <View style={styles.panelHeader}>
-                        <View>
-                          <Text
-                            style={[
-                              styles.sectionTitle,
-                              { color: theme.title },
-                            ]}
-                          >
-                            Monthly Plans
-                          </Text>
-                          <Text
-                            style={[
-                              styles.sectionSubtitle,
-                              { color: theme.faint },
-                            ]}
-                          >
-                            These recurring expenses are recreated automatically
-                            each month.
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.recurringPlansList}>
-                        {(user.recurringExpenses ?? [])
-                          .filter((item) => item.isActive !== false)
-                          .map((item) => (
-                            <View
-                              key={item.id}
-                              style={[
-                                styles.recurringPlanCard,
-                                {
-                                  backgroundColor: theme.mutedSurface,
-                                  borderColor: theme.cardBorder,
-                                },
-                              ]}
-                            >
-                              <View style={styles.recurringPlanCopy}>
-                                <Text
-                                  style={[
-                                    styles.recurringPlanTitle,
-                                    { color: theme.title },
-                                  ]}
-                                >
-                                  {item.description}
-                                </Text>
-                                <Text
-                                  style={[
-                                    styles.recurringPlanMeta,
-                                    { color: theme.muted },
-                                  ]}
-                                >
-                                  {formatAmount(item.amount)} · every month on
-                                  day {item.dayOfMonth}
-                                </Text>
-                              </View>
-                              <TouchableOpacity
-                                style={styles.recurringPlanRemove}
-                                onPress={() =>
-                                  handleRemoveRecurringExpense(item.id)
-                                }
-                              >
-                                <Ionicons
-                                  name="close"
-                                  size={16}
-                                  color="#FCA5A5"
-                                />
-                              </TouchableOpacity>
-                            </View>
-                          ))}
+                {(user.recurringExpenses?.length ?? 0) > 0 ? (
+                  <View style={styles.recurringPlansWrap}>
+                    <View style={styles.panelHeader}>
+                      <View>
+                        <Text
+                          style={[styles.sectionTitle, { color: theme.title }]}
+                        >
+                          Monthly Plans
+                        </Text>
+                        <Text
+                          style={[
+                            styles.sectionSubtitle,
+                            { color: theme.faint },
+                          ]}
+                        >
+                          These recurring expenses are recreated automatically
+                          each month.
+                        </Text>
                       </View>
                     </View>
-                  ) : null}
+
+                    <View style={styles.recurringPlansList}>
+                      {(user.recurringExpenses ?? [])
+                        .filter((item) => item.isActive !== false)
+                        .map((item) => (
+                          <View
+                            key={item.id}
+                            style={[
+                              styles.recurringPlanCard,
+                              {
+                                backgroundColor: theme.mutedSurface,
+                                borderColor: theme.cardBorder,
+                              },
+                            ]}
+                          >
+                            <View style={styles.recurringPlanCopy}>
+                              <Text
+                                style={[
+                                  styles.recurringPlanTitle,
+                                  { color: theme.title },
+                                ]}
+                              >
+                                {item.description}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.recurringPlanMeta,
+                                  { color: theme.muted },
+                                ]}
+                              >
+                                {formatAmount(item.amount)} · every month on day{" "}
+                                {item.dayOfMonth}
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              style={styles.recurringPlanRemove}
+                              onPress={() =>
+                                handleRemoveRecurringExpense(item.id)
+                              }
+                            >
+                              <Ionicons
+                                name="close"
+                                size={16}
+                                color="#FCA5A5"
+                              />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                    </View>
+                  </View>
+                ) : null}
 
                 <View
                   style={[
@@ -2158,7 +2161,9 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                             styles.budgetMetricValue,
                             {
                               color:
-                                overspentThisMonth > 0 ? "#F87171" : theme.title,
+                                overspentThisMonth > 0
+                                  ? "#F87171"
+                                  : theme.title,
                             },
                           ]}
                         >
@@ -2657,7 +2662,10 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                     <LinearGradient
                       colors={
                         themeMode === "light"
-                          ? ["rgba(125, 211, 252, 0.5)", "rgba(255,255,255,0.96)"]
+                          ? [
+                              "rgba(125, 211, 252, 0.5)",
+                              "rgba(255,255,255,0.96)",
+                            ]
                           : ["rgba(34,211,238,0.18)", "rgba(15,23,42,0.96)"]
                       }
                       start={{ x: 0, y: 0 }}
@@ -2679,16 +2687,22 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                           <Text
                             style={[
                               styles.signalLabel,
-                              { color: themeMode === "light" ? "#0369A1" : "#67E8F9" },
+                              {
+                                color:
+                                  themeMode === "light" ? "#0369A1" : "#67E8F9",
+                              },
                             ]}
                           >
                             Analytics
                           </Text>
                           <Text
-                            style={[styles.sectionSubtitle, { color: theme.muted }]}
+                            style={[
+                              styles.sectionSubtitle,
+                              { color: theme.muted },
+                            ]}
                           >
-                            Weekly spending trend and export tools for this month
-                            activity.
+                            Weekly spending trend and export tools for this
+                            month activity.
                           </Text>
                         </View>
                       </View>
@@ -2724,7 +2738,10 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                           />
                         </View>
                         <Text
-                          style={[styles.analyticsHeroValue, { color: theme.title }]}
+                          style={[
+                            styles.analyticsHeroValue,
+                            { color: theme.title },
+                          ]}
                         >
                           {trendStats.monthlyChange >= 0 ? "+" : ""}
                           {trendStats.monthlyChange.toFixed(0)}%
@@ -2814,7 +2831,8 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                               { color: theme.muted },
                             ]}
                           >
-                            vs last week {formatAmount(trendStats.lastWeekTotal)}
+                            vs last week{" "}
+                            {formatAmount(trendStats.lastWeekTotal)}
                           </Text>
                         </View>
                       </View>
@@ -2908,7 +2926,9 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                                 styles.analyticsReceiptFill,
                                 {
                                   width: `${Math.max(
-                                    Math.round(trendStats.receiptCoverage * 100),
+                                    Math.round(
+                                      trendStats.receiptCoverage * 100,
+                                    ),
                                     8,
                                   )}%`,
                                 },
@@ -3171,7 +3191,9 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                         },
                       ]}
                     >
-                      <Text style={[styles.sectionTitle, { color: theme.title }]}>
+                      <Text
+                        style={[styles.sectionTitle, { color: theme.title }]}
+                      >
                         Category breakdown
                       </Text>
                       <Text
@@ -3181,47 +3203,54 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                         {dateRangeLabel.toLowerCase()}.
                       </Text>
                       <View style={styles.categoryBreakdownList}>
-                        {sortedCategoryBreakdown.slice(0, 5).map(([label, total]) => {
-                          const max = sortedCategoryBreakdown[0]?.[1] || 1;
-                          return (
-                            <View key={label} style={styles.categoryBreakdownRow}>
-                              <View style={styles.categoryBreakdownCopy}>
-                                <Text
-                                  style={[
-                                    styles.categoryBreakdownLabel,
-                                    { color: theme.title },
-                                  ]}
-                                >
-                                  {label}
-                                </Text>
-                                <Text
-                                  style={[
-                                    styles.categoryBreakdownValue,
-                                    { color: theme.muted },
-                                  ]}
-                                >
-                                  {formatAmount(total)}
-                                </Text>
-                              </View>
+                        {sortedCategoryBreakdown
+                          .slice(0, 5)
+                          .map(([label, total]) => {
+                            const max = sortedCategoryBreakdown[0]?.[1] || 1;
+                            return (
                               <View
-                                style={[
-                                  styles.categoryBreakdownTrack,
-                                  { backgroundColor: theme.cardBackground },
-                                ]}
+                                key={label}
+                                style={styles.categoryBreakdownRow}
                               >
-                                <LinearGradient
-                                  colors={["#22D3EE", "#3B82F6"]}
-                                  start={{ x: 0, y: 0 }}
-                                  end={{ x: 1, y: 0 }}
+                                <View style={styles.categoryBreakdownCopy}>
+                                  <Text
+                                    style={[
+                                      styles.categoryBreakdownLabel,
+                                      { color: theme.title },
+                                    ]}
+                                  >
+                                    {label}
+                                  </Text>
+                                  <Text
+                                    style={[
+                                      styles.categoryBreakdownValue,
+                                      { color: theme.muted },
+                                    ]}
+                                  >
+                                    {formatAmount(total)}
+                                  </Text>
+                                </View>
+                                <View
                                   style={[
-                                    styles.categoryBreakdownFill,
-                                    { width: `${Math.max((total / max) * 100, 12)}%` },
+                                    styles.categoryBreakdownTrack,
+                                    { backgroundColor: theme.cardBackground },
                                   ]}
-                                />
+                                >
+                                  <LinearGradient
+                                    colors={["#22D3EE", "#3B82F6"]}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={[
+                                      styles.categoryBreakdownFill,
+                                      {
+                                        width: `${Math.max((total / max) * 100, 12)}%`,
+                                      },
+                                    ]}
+                                  />
+                                </View>
                               </View>
-                            </View>
-                          );
-                        })}
+                            );
+                          })}
                       </View>
                     </View>
                   </>
@@ -3384,7 +3413,8 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                           numberOfLines={1}
                         >
                           {new Date(expense.date).toLocaleDateString()} /{" "}
-                          {expense.notes?.trim() || "Tap to view the full receipt"}
+                          {expense.notes?.trim() ||
+                            "Tap to view the full receipt"}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -3428,71 +3458,65 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                     ]}
                   >
                     <>
-                        <View style={styles.profileTopRow}>
-                          <TouchableOpacity
-                            onPress={handlePickAvatar}
-                            style={styles.profileAvatarWrap}
-                          >
-                            {renderAvatar(64, 26)}
-                            <View style={styles.avatarCamera}>
-                              <Ionicons
-                                name="camera-outline"
-                                size={14}
-                                color="#F8FAFC"
-                              />
-                            </View>
-                          </TouchableOpacity>
+                      <View style={styles.profileTopRow}>
+                        <TouchableOpacity
+                          onPress={handlePickAvatar}
+                          style={styles.profileAvatarWrap}
+                        >
+                          {renderAvatar(64, 26)}
+                          <View style={styles.avatarCamera}>
+                            <Ionicons
+                              name="camera-outline"
+                              size={14}
+                              color="#F8FAFC"
+                            />
+                          </View>
+                        </TouchableOpacity>
 
-                          <View style={styles.profileCopy}>
-                            <Text
+                        <View style={styles.profileCopy}>
+                          <Text
+                            style={[styles.profileName, { color: theme.title }]}
+                          >
+                            {user.name}
+                          </Text>
+                          <Text
+                            style={[styles.profileEmail, { color: theme.text }]}
+                          >
+                            {user.email}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.profileMeta,
+                              { color: theme.accent },
+                            ]}
+                          >
+                            Logged in since{" "}
+                            {user.createdAt
+                              ? new Date(user.createdAt).toLocaleDateString()
+                              : "Today"}
+                          </Text>
+                          <View style={styles.profileMetaRow}>
+                            <View
                               style={[
-                                styles.profileName,
-                                { color: theme.title },
+                                styles.profileMetaPill,
+                                {
+                                  backgroundColor: theme.cardBackground,
+                                  borderColor: theme.cardBorder,
+                                },
                               ]}
                             >
-                              {user.name}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.profileEmail,
-                                { color: theme.text },
-                              ]}
-                            >
-                              {user.email}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.profileMeta,
-                                { color: theme.accent },
-                              ]}
-                            >
-                              Logged in since{" "}
-                              {user.createdAt
-                                ? new Date(user.createdAt).toLocaleDateString()
-                                : "Today"}
-                            </Text>
-                            <View style={styles.profileMetaRow}>
-                              <View
+                              <Text
                                 style={[
-                                  styles.profileMetaPill,
-                                  {
-                                    backgroundColor: theme.cardBackground,
-                                    borderColor: theme.cardBorder,
-                                  },
+                                  styles.profileMetaPillText,
+                                  { color: theme.title },
                                 ]}
                               >
-                                <Text
-                                  style={[
-                                    styles.profileMetaPillText,
-                                    { color: theme.title },
-                                  ]}
-                                >
-                                  Currency {preferredCurrency}
-                                </Text>
-                              </View>
+                                Currency {preferredCurrency}
+                              </Text>
                             </View>
                           </View>
                         </View>
+                      </View>
                     </>
                   </View>
 
@@ -3524,7 +3548,8 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                         <TouchableOpacity
                           style={[
                             styles.secondaryButton,
-                            themeMode === "light" && styles.secondaryButtonLight,
+                            themeMode === "light" &&
+                              styles.secondaryButtonLight,
                           ]}
                           onPress={() => {
                             setEditName(user.name);
@@ -3545,7 +3570,8 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                         <TouchableOpacity
                           style={[
                             styles.secondaryButton,
-                            themeMode === "light" && styles.secondaryButtonLight,
+                            themeMode === "light" &&
+                              styles.secondaryButtonLight,
                           ]}
                           onPress={() => setShowGuideCard(true)}
                         >
@@ -3593,12 +3619,18 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                       >
                         <View style={styles.selectFieldCopy}>
                           <Text
-                            style={[styles.selectFieldValue, { color: theme.title }]}
+                            style={[
+                              styles.selectFieldValue,
+                              { color: theme.title },
+                            ]}
                           >
                             {preferredCurrency}
                           </Text>
                           <Text
-                            style={[styles.selectFieldLabel, { color: theme.muted }]}
+                            style={[
+                              styles.selectFieldLabel,
+                              { color: theme.muted },
+                            ]}
                           >
                             {SUPPORTED_CURRENCIES.find(
                               (item) => item.code === preferredCurrency,
@@ -3635,7 +3667,8 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                         <TouchableOpacity
                           style={[
                             styles.secondaryButton,
-                            themeMode === "light" && styles.secondaryButtonLight,
+                            themeMode === "light" &&
+                              styles.secondaryButtonLight,
                           ]}
                           onPress={() => {
                             setPasswordError("");
@@ -3656,7 +3689,6 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                       </View>
                     </View>
                   </View>
-
                 </View>
 
                 <View
@@ -4175,7 +4207,8 @@ const QUICK_ADD_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
                     <Text
                       style={[
                         styles.secondaryButtonText,
-                        themeMode === "light" && styles.secondaryButtonTextLight,
+                        themeMode === "light" &&
+                          styles.secondaryButtonTextLight,
                       ]}
                     >
                       Cancel
@@ -6667,4 +6700,3 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
   },
 });
-

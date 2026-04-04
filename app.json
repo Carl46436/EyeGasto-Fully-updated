@@ -2,9 +2,9 @@
   "expo": {
     "name": "EyeGasto",
     "slug": "eyegasto",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
-    "icon": "./assets/images/app2.png",
+    "icon": "./assets/images/applogo-circle.png",
     "scheme": "expensetracker",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,9 +13,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#020617",
-        "foregroundImage": "./assets/images/app2.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#081225",
+        "foregroundImage": "./assets/images/applogo-circle.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -23,19 +22,19 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/app2.png"
+      "favicon": "./assets/images/applogo-circle.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/app2.png",
-          "imageWidth": 132,
+          "image": "./assets/images/applogo-circle.png",
+          "imageWidth": 160,
           "resizeMode": "contain",
-          "backgroundColor": "#020617",
+          "backgroundColor": "#081225",
           "dark": {
-            "backgroundColor": "#020617"
+            "backgroundColor": "#081225"
           }
         }
       ]
