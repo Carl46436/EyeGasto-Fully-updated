@@ -8,8 +8,8 @@ import {
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { Expense } from "../types/index";
-import { CurrencyCode, formatCurrency } from "../services/currency";
+import { Expense } from "@/src/types";
+import { CurrencyCode, formatCurrency } from "@/src/services/currency";
 
 type Props = Omit<Expense, "id"> & {
   onDelete?: () => void;

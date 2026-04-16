@@ -16,7 +16,7 @@ import { BlurView } from "expo-blur";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { CurrencyCode } from "../services/currency";
+import { CurrencyCode } from "@/src/services/currency";
 
 interface Props {
   onAdd: (

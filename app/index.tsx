@@ -11,12 +11,12 @@ import VerifyEmailOtpScreen from "./components/VerifyEmailOtpScreen";
 import DashboardScreen from "./components/DashboardScreen";
 import LoadingScreen from "./components/LoadingScreen";
 import ErrorAlert from "./components/ErrorAlert";
-import authService from "./services/authService";
-import { parseAuthRedirectUrl } from "./services/authRedirect";
-import expenseService from "./services/expenseService";
-import storageService, { StorageKeys } from "./services/storageService";
-import { supabase } from "./services/supabaseClient";
-import { Expense, RecurringExpenseTemplate, User } from "./types";
+import authService from "@/src/services/authService";
+import { parseAuthRedirectUrl } from "@/src/services/authRedirect";
+import expenseService from "@/src/services/expenseService";
+import storageService, { StorageKeys } from "@/src/services/storageService";
+import { supabase } from "@/src/services/supabaseClient";
+import { Expense, RecurringExpenseTemplate, User } from "@/src/types";
 
 type Screen =
   | "welcome"

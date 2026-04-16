@@ -4,7 +4,7 @@
     "slug": "eyegasto",
     "version": "1.0.5",
     "orientation": "portrait",
-    "icon": "./assets/images/applogo-circle.png",
+    "icon": "./assets/images/app2.png",
     "scheme": "expensetracker",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#081225",
-        "foregroundImage": "./assets/images/applogo-circle.png"
+        "foregroundImage": "./assets/images/app2.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -22,14 +22,14 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/applogo-circle.png"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/applogo-circle.png",
+          "image": "./assets/images/app2.png",
           "imageWidth": 160,
           "resizeMode": "contain",
           "backgroundColor": "#081225",

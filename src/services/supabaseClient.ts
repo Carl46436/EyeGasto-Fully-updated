@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 import storageService, { StorageKeys } from "./storageService";
 
 const EXPO_PUBLIC_SUPABASE_URL =
@@ -9,6 +10,8 @@ const EXPO_PUBLIC_SUPABASE_URL =
 const EXPO_PUBLIC_SUPABASE_ANON_KEY =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
   (Constants.expoConfig?.extra as any)?.SUPABASE_ANON_KEY;
+
+const isExpoGo = Constants.appOwnership === "expo";
 
 // ensure the required values are available before attempting to create the client
 if (!EXPO_PUBLIC_SUPABASE_URL || !EXPO_PUBLIC_SUPABASE_ANON_KEY) {
@@ -27,17 +30,31 @@ export const supabase = createClient(
   {
     auth: {
       storage: {
-        getItem: (key) => storageService.getItem<string>(key),
+        getItem: (key) => {
+          if (isExpoGo && key === StorageKeys.SUPABASE_SESSION) {
+            return null;
+          }
+
+          return storageService.getItem<string>(key);
+        },
         setItem: async (key, value) => {
+          if (isExpoGo && key === StorageKeys.SUPABASE_SESSION) {
+            return;
+          }
+
           await storageService.setItem(key, value);
         },
         removeItem: async (key) => {
+          if (isExpoGo && key === StorageKeys.SUPABASE_SESSION) {
+            return;
+          }
+
           await storageService.removeItem(key);
         },
       },
       storageKey: StorageKeys.SUPABASE_SESSION,
-      persistSession: true,
-      autoRefreshToken: true,
+      persistSession: !isExpoGo,
+      autoRefreshToken: Platform.OS !== "web" && !isExpoGo,
       detectSessionInUrl: false,
     },
   },

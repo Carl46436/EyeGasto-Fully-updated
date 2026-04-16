@@ -1,8 +1,13 @@
 import { RecurringExpenseTemplate, User } from "../types/index";
 import { buildAuthRedirectUrl } from "./authRedirect";
+import storageService, { StorageKeys } from "./storageService";
 import { supabase } from "./supabaseClient";
 
 class AuthService {
+  private async clearInvalidSession() {
+    await storageService.removeItem(StorageKeys.SUPABASE_SESSION);
+  }
+
   private mapRecurringExpenses(value: unknown): RecurringExpenseTemplate[] {
     if (!Array.isArray(value)) {
       return [];
@@ -179,6 +184,12 @@ class AuthService {
     try {
       const { data, error } = await supabase.auth.getUser();
       if (error || !data.user) {
+        if (
+          error?.message?.includes("Invalid Refresh Token") ||
+          error?.message?.includes("Refresh Token Not Found")
+        ) {
+          await this.clearInvalidSession();
+        }
         return null;
       }
       return this.mapSupabaseUser(data.user);

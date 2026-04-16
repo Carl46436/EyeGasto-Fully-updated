@@ -38,14 +38,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import AddExpenseForm from "./AddExpenseForm";
 import ExpenseList from "./ExpenseList";
 import StatsCard from "./StatsCard";
-import { Expense, User } from "../types/index";
+import { Expense, User } from "@/src/types";
 import {
   CurrencyCode,
   SUPPORTED_CURRENCIES,
   formatCurrency,
-} from "../services/currency";
-import expenseStorage from "../services/expenseStorage";
-import storageService, { StorageKeys } from "../services/storageService";
+} from "@/src/services/currency";
+import expenseStorage from "@/src/services/expenseStorage";
+import storageService, { StorageKeys } from "@/src/services/storageService";
 
 interface Props {
   user: User;
@@ -204,7 +204,7 @@ export default function DashboardScreen({
       toValue: 1,
       duration: 650,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== "web",
     }).start();
   }, [fadeAnim]);
 
@@ -214,7 +214,7 @@ export default function DashboardScreen({
       toValue: 1,
       duration: 280,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== "web",
     }).start();
   }, [activeTab, contentAnim]);
 

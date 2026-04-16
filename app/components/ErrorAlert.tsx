@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
+  Platform,
 } from "react-native";
 
 interface ErrorAlertProps {
@@ -27,7 +28,7 @@ export default function ErrorAlert({
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 300,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== "web",
     }).start(() => {
       setVisible(false);
       onDismiss?.();

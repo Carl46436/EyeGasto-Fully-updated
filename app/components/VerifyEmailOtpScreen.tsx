@@ -49,7 +49,7 @@ export default function VerifyEmailOtpScreen({
     Animated.timing(entranceAnim, {
       toValue: 1,
       duration: 420,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== "web",
     }).start();
   }, [entranceAnim]);
 

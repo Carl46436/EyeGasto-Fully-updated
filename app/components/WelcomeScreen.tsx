@@ -26,7 +26,7 @@ const featureList = [
 const insightRows = [
   { label: "Receipt-backed entries", value: "Visual proof" },
   { label: "Recurring planning", value: "Monthly flow" },
-  { label: "Smart exports", value: "CSV, JSON, Summary Reports" },
+  { label: "Smart exports", value: "CSV, PDF, Summary Reports" },
 ];
 
 export default function WelcomeScreen({

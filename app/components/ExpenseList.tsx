@@ -1,8 +1,8 @@
 import React from "react";
 import { View, StyleSheet, Text } from "react-native";
 import ExpenseItem from "./ExpenseItem";
-import { Expense } from "../types/index";
-import { CurrencyCode } from "../services/currency";
+import { Expense } from "@/src/types";
+import { CurrencyCode } from "@/src/services/currency";
 
 interface Props {
   expenses: Expense[];
