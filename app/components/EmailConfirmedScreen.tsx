@@ -13,6 +13,7 @@ import {
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { createShadow } from "@/src/utils/shadow";
 
 interface Props {
   onLoginPress: () => void;
@@ -287,11 +288,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
     borderRadius: 999,
     overflow: "hidden",
-    shadowColor: "#67E8F9",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.24,
-    shadowRadius: 18,
-    elevation: 8,
+    ...createShadow("0px 12px 18px rgba(103, 232, 249, 0.24)", {
+      shadowColor: "#67E8F9",
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.24,
+      shadowRadius: 18,
+      elevation: 8,
+    }),
   },
   iconFill: {
     width: 82,

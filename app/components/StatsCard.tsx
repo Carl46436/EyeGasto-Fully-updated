@@ -3,6 +3,7 @@ import { Platform, StyleSheet, Text, View } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { CurrencyCode, formatCurrency } from "@/src/services/currency";
+import { createShadow } from "@/src/utils/shadow";
 
 interface Props {
   title: string;
@@ -69,11 +70,13 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.1)",
-    shadowColor: "#020617",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    elevation: 4,
+    ...createShadow("0px 8px 14px rgba(2, 6, 23, 0.18)", {
+      shadowColor: "#020617",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.18,
+      shadowRadius: 14,
+      elevation: 4,
+    }),
   },
   innerLight: {
     backgroundColor: "rgba(255,255,255,0.96)",

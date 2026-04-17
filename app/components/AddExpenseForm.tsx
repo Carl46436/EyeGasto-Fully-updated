@@ -17,6 +17,7 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { CurrencyCode } from "@/src/services/currency";
+import { createShadow } from "@/src/utils/shadow";
 
 interface Props {
   onAdd: (
@@ -1179,11 +1180,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexDirection: "row",
     gap: 10,
-    shadowColor: "#22D3EE",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.26,
-    shadowRadius: 18,
-    elevation: 7,
+    ...createShadow("0px 10px 18px rgba(34, 211, 238, 0.26)", {
+      shadowColor: "#22D3EE",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.26,
+      shadowRadius: 18,
+      elevation: 7,
+    }),
   },
   submitWrap: {
     borderRadius: 16,

@@ -7,6 +7,7 @@ import {
   Animated,
   Platform,
 } from "react-native";
+import { createShadow } from "@/src/utils/shadow";
 
 interface ErrorAlertProps {
   message: string;
@@ -81,11 +82,13 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 8,
     borderRadius: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    ...createShadow("0px 2px 4px rgba(0, 0, 0, 0.3)", {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 5,
+    }),
   },
   message: {
     flex: 1,

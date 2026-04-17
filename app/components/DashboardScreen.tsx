@@ -46,6 +46,7 @@ import {
 } from "@/src/services/currency";
 import expenseStorage from "@/src/services/expenseStorage";
 import storageService, { StorageKeys } from "@/src/services/storageService";
+import { createShadow } from "@/src/utils/shadow";
 
 interface Props {
   user: User;
@@ -5067,11 +5068,13 @@ const styles = StyleSheet.create({
   headerAddButton: {
     borderRadius: 999,
     overflow: "hidden",
-    shadowColor: "#38BDF8",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    elevation: 6,
+    ...createShadow("0px 10px 18px rgba(56, 189, 248, 0.22)", {
+      shadowColor: "#38BDF8",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.22,
+      shadowRadius: 18,
+      elevation: 6,
+    }),
   },
   headerAddButtonFill: {
     minHeight: 44,
@@ -5347,11 +5350,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(30, 41, 59, 0.92)",
     borderWidth: 1,
-    shadowColor: "#22D3EE",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 6,
+    ...createShadow("0px 8px 16px rgba(34, 211, 238, 0.2)", {
+      shadowColor: "#22D3EE",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.2,
+      shadowRadius: 16,
+      elevation: 6,
+    }),
   },
   quickAddRow: { paddingTop: 12, gap: 10, paddingBottom: 4 },
   recurringPlansWrap: {
@@ -5397,11 +5402,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 23, 42, 0.92)",
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.1)",
-    shadowColor: "#020617",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 4,
+    ...createShadow("0px 10px 20px rgba(2, 6, 23, 0.12)", {
+      shadowColor: "#020617",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.12,
+      shadowRadius: 20,
+      elevation: 4,
+    }),
   },
   quickAddChipTop: {
     flexDirection: "row",
@@ -6039,11 +6046,13 @@ const styles = StyleSheet.create({
   graphBar: {
     width: "100%",
     borderRadius: 18,
-    shadowColor: "#38BDF8",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    elevation: 7,
+    ...createShadow("0px 10px 18px rgba(56, 189, 248, 0.28)", {
+      shadowColor: "#38BDF8",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.28,
+      shadowRadius: 18,
+      elevation: 7,
+    }),
   },
   graphLabel: {
     marginTop: 12,
@@ -6436,11 +6445,13 @@ const styles = StyleSheet.create({
     borderRadius: 31,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#38BDF8",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.26,
-    shadowRadius: 20,
-    elevation: 10,
+    ...createShadow("0px 10px 20px rgba(56, 189, 248, 0.26)", {
+      shadowColor: "#38BDF8",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.26,
+      shadowRadius: 20,
+      elevation: 10,
+    }),
   },
   navAddLabel: {
     marginTop: 6,
