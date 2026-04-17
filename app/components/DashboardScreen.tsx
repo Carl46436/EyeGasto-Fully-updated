@@ -1379,14 +1379,13 @@ export default function DashboardScreen({
           style={[styles.headerLeft, isVeryCompact && styles.headerLeftCompact]}
         >
           <View style={styles.headerBrandBadge}>
-            <LinearGradient
-              colors={["#67E8F9", "#38BDF8", "#2563EB"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.headerBrandBadgeFill}
-            >
-              <Ionicons name="eye-outline" size={20} color="#082F49" />
-            </LinearGradient>
+            <View style={styles.headerBrandBadgeFill}>
+              <Image
+                source={require("../../assets/images/app2.png")}
+                style={styles.headerBrandLogo}
+                contentFit="contain"
+              />
+            </View>
           </View>
           <View style={styles.headerBrandCopy}>
             <Text style={[styles.headerTitle, { color: theme.title }]}>
@@ -1464,25 +1463,6 @@ export default function DashboardScreen({
             ]}
           >
             <View style={styles.sideNavIntro}>
-              <View style={styles.sideNavBrand}>
-                <View style={styles.sideNavBrandBadge}>
-                  <LinearGradient
-                    colors={["#67E8F9", "#38BDF8", "#2563EB"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.sideNavBrandBadgeFill}
-                  >
-                    <Ionicons name="eye-outline" size={18} color="#082F49" />
-                  </LinearGradient>
-                </View>
-                <View style={styles.sideNavBrandCopy}>
-                  <Text
-                    style={[styles.sideNavBrandText, { color: theme.title }]}
-                  >
-                    EyeGasto
-                  </Text>
-                </View>
-              </View>
               <Text style={[styles.sideNavTitle, { color: theme.title }]}>
                 Dashboard Navigation
               </Text>
@@ -5028,19 +5008,18 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    padding: 2,
-    backgroundColor: "rgba(103, 232, 249, 0.16)",
-    shadowColor: "#38BDF8",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.24,
-    shadowRadius: 18,
-    elevation: 8,
+    padding: 0,
+    backgroundColor: "transparent",
   },
   headerBrandBadgeFill: {
     flex: 1,
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerBrandLogo: {
+    width: 50,
+    height: 50,
   },
   headerBrandCopy: {
     flex: 1,
@@ -5150,14 +5129,18 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    padding: 2,
-    backgroundColor: "rgba(103, 232, 249, 0.16)",
+    padding: 0,
+    backgroundColor: "transparent",
   },
   sideNavBrandBadgeFill: {
     flex: 1,
     borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
+  },
+  sideNavBrandLogo: {
+    width: 50,
+    height: 50,
   },
   sideNavBrandCopy: {
     flex: 1,

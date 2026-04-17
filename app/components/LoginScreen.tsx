@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -143,14 +144,13 @@ export default function LoginScreen({
 
               <View style={styles.brandRow}>
                 <View style={styles.brandBadge}>
-                  <LinearGradient
-                    colors={["#67E8F9", "#38BDF8", "#2563EB"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.brandBadgeFill}
-                  >
-                    <Ionicons name="eye-outline" size={20} color="#082F49" />
-                  </LinearGradient>
+                  <View style={styles.brandBadgeFill}>
+                    <Image
+                      source={require("../../assets/images/app2.png")}
+                      style={styles.brandLogo}
+                      resizeMode="contain"
+                    />
+                  </View>
                 </View>
                 <View style={styles.brandCopy}>
                   <Text style={styles.brandText}>EyeGasto</Text>
@@ -373,19 +373,18 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    padding: 2,
-    backgroundColor: "rgba(103, 232, 249, 0.16)",
-    shadowColor: "#38BDF8",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    elevation: 8,
+    padding: 0,
+    backgroundColor: "transparent",
   },
   brandBadgeFill: {
     flex: 1,
     borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
+  },
+  brandLogo: {
+    width: 50,
+    height: 50,
   },
   brandCopy: {
     justifyContent: "center",
