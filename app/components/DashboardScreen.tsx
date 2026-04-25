@@ -928,8 +928,7 @@ export default function DashboardScreen({
         `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontObjectNumber} 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`;
     });
 
-    objects[2] =
-      `<< /Type /Pages /Kids [${pageObjectNumbers.map((number) => `${number} 0 R`).join(" ")}] /Count ${pageObjectNumbers.length} >>`;
+    objects[2] = `<< /Type /Pages /Kids [${pageObjectNumbers.map((number) => `${number} 0 R`).join(" ")}] /Count ${pageObjectNumbers.length} >>`;
 
     let pdf = "%PDF-1.4\n";
     const offsets: number[] = [0];
@@ -2986,8 +2985,8 @@ export default function DashboardScreen({
                     {!isExpensesLoading &&
                     graphEntries.every(([, total]) => total === 0) ? (
                       <Text style={styles.emptyGraphText}>
-                        No spending recorded for the current month yet. Add a new
-                        expense to start the weekly trend chart.
+                        No spending recorded for the current month yet. Add a
+                        new expense to start the weekly trend chart.
                       </Text>
                     ) : !isExpensesLoading ? (
                       <ScrollView
@@ -3009,12 +3008,18 @@ export default function DashboardScreen({
                         >
                           <View style={styles.graphHeader}>
                             <Text
-                              style={[styles.graphTitle, { color: theme.title }]}
+                              style={[
+                                styles.graphTitle,
+                                { color: theme.title },
+                              ]}
                             >
                               Weekly Spending Trend
                             </Text>
                             <Text
-                              style={[styles.graphSubtitle, { color: theme.faint }]}
+                              style={[
+                                styles.graphSubtitle,
+                                { color: theme.faint },
+                              ]}
                             >
                               Current Month
                             </Text>
@@ -3048,18 +3053,20 @@ export default function DashboardScreen({
                             </View>
 
                             <View style={styles.graphPlotArea}>
-                              {[1, 0.75, 0.5, 0.25, 0].map((step, lineIndex) => (
-                                <View
-                                  key={`line-${lineIndex}`}
-                                  style={[
-                                    styles.graphGridLine,
-                                    {
-                                      top: `${(1 - step) * 100}%`,
-                                      borderColor: theme.cardBorder,
-                                    },
-                                  ]}
-                                />
-                              ))}
+                              {[1, 0.75, 0.5, 0.25, 0].map(
+                                (step, lineIndex) => (
+                                  <View
+                                    key={`line-${lineIndex}`}
+                                    style={[
+                                      styles.graphGridLine,
+                                      {
+                                        top: `${(1 - step) * 100}%`,
+                                        borderColor: theme.cardBorder,
+                                      },
+                                    ]}
+                                  />
+                                ),
+                              )}
 
                               <View
                                 style={[
@@ -3072,64 +3079,70 @@ export default function DashboardScreen({
                               />
 
                               <View style={styles.graphColumnsRow}>
-                                {graphEntries.map(([dayLabel, total], index) => {
-                                  const max = Math.max(
-                                    ...graphEntries.map(([, value]) => value),
-                                    1,
-                                  );
-                                  const height = Math.max(
-                                    (total / max) * 210,
-                                    total > 0 ? 32 : 12,
-                                  );
-                                  const gradients: Record<number, string[]> = {
-                                    0: ["#2F80ED", "#3B82F6"],
-                                    1: ["#22C55E", "#34D399"],
-                                    2: ["#F59E0B", "#FB923C"],
-                                    3: ["#38BDF8", "#22D3EE"],
-                                  };
-                                  const barColors = gradients[index] || [
-                                    "#38BDF8",
-                                    "#818CF8",
-                                  ];
+                                {graphEntries.map(
+                                  ([dayLabel, total], index) => {
+                                    const max = Math.max(
+                                      ...graphEntries.map(([, value]) => value),
+                                      1,
+                                    );
+                                    const height = Math.max(
+                                      (total / max) * 210,
+                                      total > 0 ? 32 : 12,
+                                    );
+                                    const gradients: Record<number, string[]> =
+                                      {
+                                        0: ["#2F80ED", "#3B82F6"],
+                                        1: ["#22C55E", "#34D399"],
+                                        2: ["#F59E0B", "#FB923C"],
+                                        3: ["#38BDF8", "#22D3EE"],
+                                      };
+                                    const barColors = gradients[index] || [
+                                      "#38BDF8",
+                                      "#818CF8",
+                                    ];
 
-                                  return (
-                                    <View
-                                      key={dayLabel}
-                                      style={styles.graphColumnCard}
-                                    >
-                                      <Text
-                                        style={[
-                                          styles.graphValue,
-                                          { color: theme.title },
-                                        ]}
+                                    return (
+                                      <View
+                                        key={dayLabel}
+                                        style={styles.graphColumnCard}
                                       >
-                                        {formatChartAmount(total)}
-                                      </Text>
-                                      <View style={styles.graphBarShell}>
-                                        <LinearGradient
-                                          colors={
-                                            barColors as [
-                                              string,
-                                              string,
-                                              ...string[],
-                                            ]
-                                          }
-                                          start={{ x: 0, y: 0 }}
-                                          end={{ x: 0, y: 1 }}
-                                          style={[styles.graphBar, { height }]}
-                                        />
+                                        <Text
+                                          style={[
+                                            styles.graphValue,
+                                            { color: theme.title },
+                                          ]}
+                                        >
+                                          {formatChartAmount(total)}
+                                        </Text>
+                                        <View style={styles.graphBarShell}>
+                                          <LinearGradient
+                                            colors={
+                                              barColors as [
+                                                string,
+                                                string,
+                                                ...string[],
+                                              ]
+                                            }
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 0, y: 1 }}
+                                            style={[
+                                              styles.graphBar,
+                                              { height },
+                                            ]}
+                                          />
+                                        </View>
+                                        <Text
+                                          style={[
+                                            styles.graphLabel,
+                                            { color: theme.title },
+                                          ]}
+                                        >
+                                          {dayLabel}
+                                        </Text>
                                       </View>
-                                      <Text
-                                        style={[
-                                          styles.graphLabel,
-                                          { color: theme.title },
-                                        ]}
-                                      >
-                                        {dayLabel}
-                                      </Text>
-                                    </View>
-                                  );
-                                })}
+                                    );
+                                  },
+                                )}
                               </View>
                             </View>
                           </View>
@@ -3523,7 +3536,8 @@ export default function DashboardScreen({
                       <Text
                         style={[styles.legalSubtitle, { color: theme.muted }]}
                       >
-                        Update your profile details or reopen the first-time tips.
+                        Update your profile details or reopen the first-time
+                        tips.
                       </Text>
                       <View style={styles.profileActionRow}>
                         <TouchableOpacity
@@ -3585,7 +3599,8 @@ export default function DashboardScreen({
                       <Text
                         style={[styles.legalSubtitle, { color: theme.muted }]}
                       >
-                        Choose the currency you want to see across totals and exports.
+                        Choose the currency you want to see across totals and
+                        exports.
                       </Text>
 
                       <TouchableOpacity
@@ -4533,8 +4548,7 @@ export default function DashboardScreen({
                   key: "pdf" as const,
                   icon: "document-outline" as const,
                   title: "PDF Report",
-                  subtitle:
-                    "Readable report for sharing, saving, or printing.",
+                  subtitle: "Readable report for sharing, saving, or printing.",
                 },
                 {
                   key: "summary" as const,
