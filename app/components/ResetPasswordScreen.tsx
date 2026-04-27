@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Image,
   KeyboardAvoidingView,
@@ -20,11 +19,13 @@ import { Ionicons } from "@expo/vector-icons";
 interface Props {
   onBackPress: () => void;
   onSubmit: (password: string) => Promise<void>;
+  onNotify?: (message: string, type?: "error" | "warning" | "success") => void;
 }
 
 export default function ResetPasswordScreen({
   onBackPress,
   onSubmit,
+  onNotify,
 }: Props) {
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === "web" && width >= 960;
@@ -46,20 +47,17 @@ export default function ResetPasswordScreen({
 
   const handleSubmit = async () => {
     if (!password.trim()) {
-      Alert.alert("Missing password", "Enter a new password to continue.");
+      onNotify?.("Enter a new password to continue.", "warning");
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert(
-        "Password too short",
-        "Your new password must be at least 6 characters.",
-      );
+      onNotify?.("Your new password must be at least 6 characters.", "warning");
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert("Passwords do not match", "Please re-enter both fields.");
+      onNotify?.("Passwords do not match. Please re-enter both fields.", "warning");
       return;
     }
 

@@ -11,14 +11,17 @@ import VerifyEmailOtpScreen from "./components/VerifyEmailOtpScreen";
 import DashboardScreen from "./components/DashboardScreen";
 import LoadingScreen from "./components/LoadingScreen";
 import ErrorAlert from "./components/ErrorAlert";
+import OnboardingIntroScreen from "./components/OnboardingIntroScreen";
 import authService from "@/src/services/authService";
 import { parseAuthRedirectUrl } from "@/src/services/authRedirect";
 import expenseService from "@/src/services/expenseService";
 import storageService, { StorageKeys } from "@/src/services/storageService";
+import appLogger from "@/src/services/appLogger";
 import { supabase } from "@/src/services/supabaseClient";
 import { Expense, RecurringExpenseTemplate, User } from "@/src/types";
 
 type Screen =
+  | "onboardingIntro"
   | "welcome"
   | "login"
   | "register"
@@ -32,8 +35,10 @@ type AlertState = {
   type: "error" | "warning" | "success";
 };
 
+type UserUpdatePayload = Partial<User>;
+
 export default function Index() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
+  const [currentScreen, setCurrentScreen] = useState<Screen>("onboardingIntro");
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,9 +60,9 @@ export default function Index() {
     const preferences = await storageService.getItem<{
       themeMode?: "dark" | "light";
       monthlyBudget?: number;
-      activeTab?: "overview" | "stats" | "gallery" | "profile";
+      activeTab?: "overview" | "budget" | "stats" | "gallery" | "profile";
       selectedCategory?: string | "All";
-      dateRange?: "thisMonth" | "lastMonth" | "last30Days" | "allTime";
+      dateRange?: "today" | "thisWeek" | "thisMonth" | "allTime";
     }>(StorageKeys.DASHBOARD_PREFERENCES);
 
     if (!preferences) {
@@ -92,6 +97,51 @@ export default function Index() {
       setIsExpensesLoading(false);
     }
   }, [showAlert]);
+
+  const enqueuePendingUserUpdate = useCallback(
+    async (updates: UserUpdatePayload) => {
+      const current =
+        (await storageService.getItem<UserUpdatePayload[]>(
+          StorageKeys.PENDING_USER_UPDATES,
+        )) ?? [];
+      await storageService.setItem(StorageKeys.PENDING_USER_UPDATES, [
+        ...current,
+        updates,
+      ]);
+      await appLogger.log("pending_user_update_enqueued", "warn", {
+        keys: Object.keys(updates),
+      });
+    },
+    [],
+  );
+
+  const flushPendingUserUpdates = useCallback(async () => {
+    const pending =
+      (await storageService.getItem<UserUpdatePayload[]>(
+        StorageKeys.PENDING_USER_UPDATES,
+      )) ?? [];
+    if (pending.length === 0) {
+      return;
+    }
+
+    for (const updates of pending) {
+      const result = await authService.updateUser(updates);
+      if (!result.success) {
+        await appLogger.log("pending_user_update_flush_failed", "warn", {
+          error: result.error,
+        });
+        return;
+      }
+      if (result.user) {
+        setUser(result.user);
+      }
+    }
+
+    await storageService.removeItem(StorageKeys.PENDING_USER_UPDATES);
+    await appLogger.log("pending_user_update_flush_success", "info", {
+      count: pending.length,
+    });
+  }, []);
 
   const handleAuthRedirect = useCallback(async (url: string) => {
     const { accessToken, refreshToken, tokenHash, code, type } =
@@ -180,12 +230,19 @@ export default function Index() {
           setCurrentScreen("dashboard");
           setIsLoading(false);
           await loadExpensesForUser(currentUser);
+          await flushPendingUserUpdates();
         } else {
-          setCurrentScreen("welcome");
+          const hasSeenOnboardingIntro = await storageService.getItem<boolean>(
+            StorageKeys.ONBOARDING_INTRO_SEEN,
+          );
+          setCurrentScreen(hasSeenOnboardingIntro ? "welcome" : "onboardingIntro");
         }
       } catch (err: any) {
         showAlert(err.message || "Failed to initialize app");
-        setCurrentScreen("welcome");
+        const hasSeenOnboardingIntro = await storageService.getItem<boolean>(
+          StorageKeys.ONBOARDING_INTRO_SEEN,
+        );
+        setCurrentScreen(hasSeenOnboardingIntro ? "welcome" : "onboardingIntro");
       } finally {
         setIsExpensesLoading(false);
         setIsLoading(false);
@@ -193,7 +250,7 @@ export default function Index() {
     };
 
     initializeApp();
-  }, [handleAuthRedirect, loadExpensesForUser, showAlert]);
+  }, [flushPendingUserUpdates, handleAuthRedirect, loadExpensesForUser, showAlert]);
 
   useEffect(() => {
     const subscription = Linking.addEventListener("url", ({ url }) => {
@@ -215,12 +272,13 @@ export default function Index() {
         return;
       }
 
-      setShouldShowGuideForThisSession(false);
+      setShouldShowGuideForThisSession(true);
       setUser(result.user || null);
       setCurrentScreen("dashboard");
       setIsLoading(false);
       if (result.user) {
         await loadExpensesForUser(result.user);
+        await flushPendingUserUpdates();
       }
     } catch (err: any) {
       showAlert(err.message || "Login error");
@@ -275,6 +333,7 @@ export default function Index() {
       setCurrentScreen("dashboard");
       showAlert("Email verified successfully.", "success");
       await loadExpensesForUser(result.user);
+      await flushPendingUserUpdates();
     } finally {
       setIsLoading(false);
     }
@@ -586,6 +645,15 @@ export default function Index() {
         />
       )}
 
+      {currentScreen === "onboardingIntro" && (
+        <OnboardingIntroScreen
+          onGetStarted={async () => {
+            await storageService.setItem(StorageKeys.ONBOARDING_INTRO_SEEN, true);
+            setCurrentScreen("welcome");
+          }}
+        />
+      )}
+
       {currentScreen === "welcome" && (
         <WelcomeScreen
           onLoginPress={() => setCurrentScreen("login")}
@@ -599,6 +667,7 @@ export default function Index() {
           onBackPress={() => setCurrentScreen("welcome")}
           onRegisterPress={() => setCurrentScreen("register")}
           onForgotPassword={handleForgotPassword}
+          onNotify={showAlert}
         />
       )}
 
@@ -615,6 +684,7 @@ export default function Index() {
           email={pendingVerificationEmail}
           onBackPress={() => setCurrentScreen("register")}
           onVerify={handleVerifyEmailOtp}
+          onNotify={showAlert}
         />
       )}
 
@@ -629,6 +699,7 @@ export default function Index() {
           cardTitle="Verify reset code"
           cardSubtitle="Check your inbox for the 8-digit reset code from EyeGasto."
           buttonLabel="Continue"
+          onNotify={showAlert}
         />
       )}
 
@@ -636,6 +707,7 @@ export default function Index() {
         <ResetPasswordScreen
           onBackPress={() => setCurrentScreen("login")}
           onSubmit={handleRecoveredPasswordUpdate}
+          onNotify={showAlert}
         />
       )}
 
@@ -667,10 +739,35 @@ export default function Index() {
               if (result.user) {
                 setUser(result.user);
               }
+              return true;
+            } catch (err: any) {
+              if (err?.message === "Auth session missing!") {
+                await enqueuePendingUserUpdate(updates);
+                await supabase.auth.signOut();
+                setShouldShowGuideForThisSession(false);
+                setUser(null);
+                setExpenses([]);
+                setCurrentScreen("login");
+                showAlert(
+                  "Your session expired. We saved your change and will retry after login.",
+                );
+                await appLogger.log("session_expired_redirect_login", "warn", {
+                  updateKeys: Object.keys(updates),
+                });
+                return false;
+              }
+
+              showAlert(err?.message || "Failed to update profile");
+              await appLogger.log("update_profile_failed", "error", {
+                error: err?.message,
+                updateKeys: Object.keys(updates),
+              });
+              return false;
             } finally {
               setIsLoading(false);
             }
           }}
+          onNotify={showAlert}
           onChangePassword={handleChangePassword}
         />
       )}

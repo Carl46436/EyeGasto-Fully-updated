@@ -1,9 +1,29 @@
-import { RecurringExpenseTemplate, User } from "../types/index";
+import {
+  CategoryBudget,
+  DebtItem,
+  RecurringExpenseTemplate,
+  User,
+} from "../types/index";
 import { buildAuthRedirectUrl } from "./authRedirect";
+import financialPlanningService from "./financialPlanningService";
 import storageService, { StorageKeys } from "./storageService";
 import { supabase } from "./supabaseClient";
+import { normalizeCategoryName } from "../utils/category";
 
 class AuthService {
+  private async persistCurrentUser(user: User | null) {
+    if (!user) {
+      await storageService.removeItem(StorageKeys.CURRENT_USER);
+      return;
+    }
+
+    await storageService.setItem(StorageKeys.CURRENT_USER, user);
+  }
+
+  private async getStoredUser() {
+    return storageService.getItem<User>(StorageKeys.CURRENT_USER);
+  }
+
   private async clearInvalidSession() {
     await storageService.removeItem(StorageKeys.SUPABASE_SESSION);
   }
@@ -31,6 +51,45 @@ class AuthService {
       }));
   }
 
+  private mapCategoryBudgets(value: unknown): CategoryBudget[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value
+      .filter((item): item is CategoryBudget => {
+        return !!item && typeof item === "object" && "id" in item;
+      })
+      .map((item) => ({
+        id: item.id,
+        category: normalizeCategoryName(item.category),
+        limit: Number(item.limit) || 0,
+        note: item.note ?? undefined,
+        updatedAt: item.updatedAt ?? undefined,
+      }));
+  }
+
+  private mapDebtItems(value: unknown): DebtItem[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value
+      .filter((item): item is DebtItem => {
+        return !!item && typeof item === "object" && "id" in item;
+      })
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        amount: Number(item.amount) || 0,
+        dueDate: item.dueDate,
+        person: item.person ?? undefined,
+        note: item.note ?? undefined,
+        isPaid: item.isPaid ?? false,
+        createdAt: item.createdAt ?? undefined,
+      }));
+  }
+
   private mapSupabaseUser(su: any): User {
     return {
       id: su.id,
@@ -42,6 +101,42 @@ class AuthService {
       recurringExpenses: this.mapRecurringExpenses(
         su.user_metadata?.recurringExpenses,
       ),
+      categoryBudgets: [],
+      debtItems: [],
+    };
+  }
+
+  private async hydrateSupabaseUser(su: any): Promise<User> {
+    const baseUser = this.mapSupabaseUser(su);
+    const [tableBudgets, tableDebtItems] = await Promise.all([
+      financialPlanningService.getCategoryBudgets(baseUser.id),
+      financialPlanningService.getDebtItems(baseUser.id),
+    ]);
+
+    const metadataBudgets = this.mapCategoryBudgets(
+      su.user_metadata?.categoryBudgets,
+    );
+    const metadataDebts = this.mapDebtItems(su.user_metadata?.debtItems);
+
+    // Keep compatibility with existing accounts and auto-migrate metadata once.
+    if (tableBudgets.length === 0 && metadataBudgets.length > 0) {
+      await financialPlanningService.replaceCategoryBudgets(
+        baseUser.id,
+        metadataBudgets,
+      );
+    }
+    if (tableDebtItems.length === 0 && metadataDebts.length > 0) {
+      await financialPlanningService.replaceDebtItems(baseUser.id, metadataDebts);
+    }
+
+    const refreshedBudgets =
+      tableBudgets.length > 0 ? tableBudgets : metadataBudgets;
+    const refreshedDebts = tableDebtItems.length > 0 ? tableDebtItems : metadataDebts;
+
+    return {
+      ...baseUser,
+      categoryBudgets: refreshedBudgets,
+      debtItems: refreshedDebts,
     };
   }
 
@@ -78,7 +173,8 @@ class AuthService {
         };
       }
 
-      const user = this.mapSupabaseUser(data.user);
+      const user = await this.hydrateSupabaseUser(data.user);
+      await this.persistCurrentUser(user);
       return { success: true, user };
     } catch (error: any) {
       return { success: false, error: error.message || "Registration failed" };
@@ -102,7 +198,8 @@ class AuthService {
         };
       }
 
-      const user = this.mapSupabaseUser(data.user);
+      const user = await this.hydrateSupabaseUser(data.user);
+      await this.persistCurrentUser(user);
       return { success: true, user };
     } catch (error: any) {
       return { success: false, error: error.message || "Login failed" };
@@ -127,7 +224,8 @@ class AuthService {
         };
       }
 
-      const user = this.mapSupabaseUser(data.user);
+      const user = await this.hydrateSupabaseUser(data.user);
+      await this.persistCurrentUser(user);
       return { success: true, user };
     } catch (error: any) {
       return { success: false, error: error.message || "Verification failed" };
@@ -190,12 +288,14 @@ class AuthService {
         ) {
           await this.clearInvalidSession();
         }
-        return null;
+        return this.getStoredUser();
       }
-      return this.mapSupabaseUser(data.user);
+      const user = await this.hydrateSupabaseUser(data.user);
+      await this.persistCurrentUser(user);
+      return user;
     } catch (error) {
       console.error("Error getting current user:", error);
-      return null;
+      return this.getStoredUser();
     }
   }
 
@@ -203,10 +303,12 @@ class AuthService {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      await this.persistCurrentUser(null);
       return true;
     } catch (error) {
       console.error("Error logging out:", error);
-      return false;
+      await this.persistCurrentUser(null);
+      return true;
     }
   }
 
@@ -215,29 +317,79 @@ class AuthService {
     email?: string;
     avatar?: string;
     recurringExpenses?: RecurringExpenseTemplate[];
+    categoryBudgets?: CategoryBudget[];
+    debtItems?: DebtItem[];
   }): Promise<{ success: boolean; error?: string; user?: User }> {
     try {
+      const sessionEnsured = await this.ensureActiveSession();
+      if (!sessionEnsured) {
+        return { success: false, error: "Auth session missing!" };
+      }
+
       const updateData: any = { data: {} };
-      if (updates.name) updateData.data.name = updates.name;
-      if (updates.avatar) updateData.data.avatar = updates.avatar;
-      if (updates.recurringExpenses) {
+      const hasNameUpdate = updates.name !== undefined;
+      const hasAvatarUpdate = updates.avatar !== undefined;
+      const hasRecurringUpdate = updates.recurringExpenses !== undefined;
+      const hasEmailUpdate = updates.email !== undefined;
+
+      if (hasNameUpdate) updateData.data.name = updates.name;
+      if (hasAvatarUpdate) updateData.data.avatar = updates.avatar;
+      if (hasRecurringUpdate) {
         updateData.data.recurringExpenses = updates.recurringExpenses;
       }
-      if (updates.email) updateData.email = updates.email;
+      if (hasEmailUpdate) updateData.email = updates.email;
 
-      // If no name or avatar update, we don't need 'data' key
       if (Object.keys(updateData.data).length === 0) {
         delete updateData.data;
       }
 
-      const { data, error } = await supabase.auth.updateUser(updateData);
-
-      if (error || !data.user) {
-        return { success: false, error: error?.message || "Update failed" };
+      if (updateData.data || updateData.email) {
+        const { error } = await supabase.auth.updateUser(updateData);
+        if (error) {
+          return { success: false, error: error.message || "Update failed" };
+        }
       }
 
-      const user = this.mapSupabaseUser(data.user);
-      return { success: true, user };
+      const {
+        data: { user: authUser },
+        error: authUserError,
+      } = await supabase.auth.getUser();
+      if (authUserError || !authUser) {
+        return {
+          success: false,
+          error: authUserError?.message || "Unable to read current user",
+        };
+      }
+
+      if (updates.categoryBudgets !== undefined) {
+        const normalizedBudgets = updates.categoryBudgets.map((item) => ({
+          ...item,
+          category: normalizeCategoryName(item.category),
+          updatedAt: item.updatedAt ?? new Date().toISOString(),
+        }));
+        const budgetUpdateSucceeded =
+          await financialPlanningService.replaceCategoryBudgets(
+            authUser.id,
+            normalizedBudgets,
+          );
+        if (!budgetUpdateSucceeded) {
+          return { success: false, error: "Failed to update category budgets" };
+        }
+      }
+
+      if (updates.debtItems !== undefined) {
+        const debtUpdateSucceeded = await financialPlanningService.replaceDebtItems(
+          authUser.id,
+          updates.debtItems,
+        );
+        if (!debtUpdateSucceeded) {
+          return { success: false, error: "Failed to update debt items" };
+        }
+      }
+
+      const hydratedUser = await this.hydrateSupabaseUser(authUser);
+      await this.persistCurrentUser(hydratedUser);
+      return { success: true, user: hydratedUser };
     } catch (error: any) {
       return { success: false, error: error.message || "Update failed" };
     }
@@ -308,6 +460,21 @@ class AuthService {
   }> {
     const user = await this.getCurrentUser();
     return { isAuthenticated: !!user, user };
+  }
+
+  private async ensureActiveSession() {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) {
+      return true;
+    }
+
+    const { data: refreshed, error: refreshError } =
+      await supabase.auth.refreshSession();
+    if (refreshError || !refreshed.session) {
+      return false;
+    }
+
+    return true;
   }
 }
 

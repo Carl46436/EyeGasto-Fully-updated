@@ -2,8 +2,77 @@ import { Expense, RecurringExpenseTemplate, User } from "../types";
 import { supabase } from "./supabaseClient";
 import authService from "./authService";
 import expenseStorage from "./expenseStorage";
+import storageService, { StorageKeys } from "./storageService";
 
 class ExpenseService {
+  private getExpenseCacheKey(userId: string) {
+    return `${StorageKeys.EXPENSE_CACHE_PREFIX}:${userId}`;
+  }
+
+  private getDeletedExpenseKey(userId: string) {
+    return `${StorageKeys.EXPENSE_DELETED_PREFIX}:${userId}`;
+  }
+
+  private async cacheExpenses(userId: string, expenses: Expense[]) {
+    await storageService.setItem(this.getExpenseCacheKey(userId), expenses);
+  }
+
+  private async getDeletedExpenseIds(userId: string) {
+    return (
+      (await storageService.getItem<string[]>(this.getDeletedExpenseKey(userId))) ??
+      []
+    );
+  }
+
+  private async setDeletedExpenseIds(userId: string, ids: string[]) {
+    await storageService.setItem(this.getDeletedExpenseKey(userId), ids);
+  }
+
+  private async getCachedExpenses(userId: string): Promise<Expense[]> {
+    const cached =
+      await storageService.getItem<(Expense & { date: string })[]>(
+        this.getExpenseCacheKey(userId),
+      );
+
+    if (!cached) {
+      return [];
+    }
+
+    return cached.map((expense) => ({
+      ...expense,
+      date: new Date(expense.date),
+    }));
+  }
+
+  private mergeRemoteAndCachedExpenses(
+    remoteExpenses: Expense[],
+    cachedExpenses: Expense[],
+    deletedIds: string[],
+  ) {
+    const merged = new Map<string, Expense>();
+
+    remoteExpenses.forEach((expense) => {
+      if (!deletedIds.includes(expense.id)) {
+        merged.set(expense.id, expense);
+      }
+    });
+
+    cachedExpenses.forEach((expense) => {
+      if (deletedIds.includes(expense.id)) {
+        return;
+      }
+
+      if (expense.isPending || !merged.has(expense.id)) {
+        merged.set(expense.id, expense);
+      }
+    });
+
+    return Array.from(merged.values()).sort(
+      (a, b) =>
+        new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
+  }
+
   private getNextRecurringDate(
     template: RecurringExpenseTemplate,
     fromDate: Date,
@@ -99,18 +168,50 @@ class ExpenseService {
         .single();
 
       if (error || !data) {
+        const offlineExpense: Expense = {
+          id: `offline-${Date.now()}`,
+          description,
+          amount,
+          date: new Date(),
+          category: category || undefined,
+          notes: notes || undefined,
+          imageUrl: imageUri ?? null,
+          isPending: true,
+        };
+        const cachedExpenses = await this.getCachedExpenses(currentUser.id);
+        await this.cacheExpenses(currentUser.id, [offlineExpense, ...cachedExpenses]);
+
+        return { success: true, expense: offlineExpense };
+      }
+
+      const mappedExpense = this.mapExpenseRecord(data);
+      const cachedExpenses = await this.getCachedExpenses(currentUser.id);
+      await this.cacheExpenses(currentUser.id, [mappedExpense, ...cachedExpenses]);
+
+      return { success: true, expense: mappedExpense };
+    } catch (error: any) {
+      const currentUser = await authService.getCurrentUser();
+      if (!currentUser) {
         return {
           success: false,
-          error: error?.message || "Failed to add expense",
+          error: error.message || "Failed to add expense",
         };
       }
 
-      return { success: true, expense: this.mapExpenseRecord(data) };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || "Failed to add expense",
+      const offlineExpense: Expense = {
+        id: `offline-${Date.now()}`,
+        description,
+        amount,
+        date: new Date(),
+        category: category || undefined,
+        notes: notes || undefined,
+        imageUrl: imageUri ?? null,
+        isPending: true,
       };
+      const cachedExpenses = await this.getCachedExpenses(currentUser.id);
+      await this.cacheExpenses(currentUser.id, [offlineExpense, ...cachedExpenses]);
+
+      return { success: true, expense: offlineExpense };
     }
   }
 
@@ -202,15 +303,32 @@ class ExpenseService {
         .eq("user_id", currentUser.id)
         .order("date", { ascending: false });
 
+      const cachedExpenses = await this.getCachedExpenses(currentUser.id);
+      const deletedIds = await this.getDeletedExpenseIds(currentUser.id);
+
       if (error || !data) {
         console.error("Error fetching expenses:", error);
+        return cachedExpenses.filter((expense) => !deletedIds.includes(expense.id));
+      }
+
+      const mappedExpenses = data.map((e: any) => this.mapExpenseRecord(e));
+      const mergedExpenses = this.mergeRemoteAndCachedExpenses(
+        mappedExpenses,
+        cachedExpenses,
+        deletedIds,
+      );
+      await this.cacheExpenses(currentUser.id, mergedExpenses);
+      return mergedExpenses;
+    } catch (error) {
+      console.error("Error fetching expenses:", error);
+      const currentUser = await authService.getCurrentUser();
+      if (!currentUser) {
         return [];
       }
 
-      return data.map((e: any) => this.mapExpenseRecord(e));
-    } catch (error) {
-      console.error("Error fetching expenses:", error);
-      return [];
+      const cachedExpenses = await this.getCachedExpenses(currentUser.id);
+      const deletedIds = await this.getDeletedExpenseIds(currentUser.id);
+      return cachedExpenses.filter((expense) => !deletedIds.includes(expense.id));
     }
   }
 
@@ -232,20 +350,52 @@ class ExpenseService {
         .single();
 
       if (error) {
+        const cachedExpenses = await this.getCachedExpenses(currentUser.id);
+        await this.cacheExpenses(
+          currentUser.id,
+          cachedExpenses.filter((expense) => expense.id !== id),
+        );
+        const deletedIds = await this.getDeletedExpenseIds(currentUser.id);
+        if (!deletedIds.includes(id)) {
+          await this.setDeletedExpenseIds(currentUser.id, [...deletedIds, id]);
+        }
+
+        return { success: true };
+      }
+
+      await expenseStorage.removeReceipt(data?.receipt_path);
+      const cachedExpenses = await this.getCachedExpenses(currentUser.id);
+      await this.cacheExpenses(
+        currentUser.id,
+        cachedExpenses.filter((expense) => expense.id !== id),
+      );
+      const deletedIds = await this.getDeletedExpenseIds(currentUser.id);
+      await this.setDeletedExpenseIds(
+        currentUser.id,
+        deletedIds.filter((deletedId) => deletedId !== id),
+      );
+
+      return { success: true };
+    } catch (error: any) {
+      const currentUser = await authService.getCurrentUser();
+      if (!currentUser) {
         return {
           success: false,
           error: error.message || "Failed to delete expense",
         };
       }
 
-      await expenseStorage.removeReceipt(data?.receipt_path);
+      const cachedExpenses = await this.getCachedExpenses(currentUser.id);
+      await this.cacheExpenses(
+        currentUser.id,
+        cachedExpenses.filter((expense) => expense.id !== id),
+      );
+      const deletedIds = await this.getDeletedExpenseIds(currentUser.id);
+      if (!deletedIds.includes(id)) {
+        await this.setDeletedExpenseIds(currentUser.id, [...deletedIds, id]);
+      }
 
       return { success: true };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || "Failed to delete expense",
-      };
     }
   }
 
@@ -315,10 +465,43 @@ class ExpenseService {
         .maybeSingle();
 
       if (error) {
-        return {
-          success: false,
-          error: error?.message || "Failed to update expense",
+        const fallbackExpense = {
+          ...existingExpense,
+          id,
+          description: updates.description ?? existingExpense?.description ?? "",
+          amount: updates.amount ?? existingExpense?.amount ?? 0,
+          category:
+            updates.category !== undefined
+              ? updates.category
+              : existingExpense?.category,
+          notes:
+            updates.notes !== undefined ? updates.notes : existingExpense?.notes,
+          date:
+            updates.date ??
+            existingExpense?.date ??
+            new Date().toISOString(),
+          image_url:
+            updatePayload.image_url !== undefined
+              ? updatePayload.image_url
+              : existingExpense?.image_url,
+          receipt_path:
+            updatePayload.receipt_path !== undefined
+              ? updatePayload.receipt_path
+              : existingExpense?.receipt_path,
         };
+        const mappedExpense = {
+          ...this.mapExpenseRecord(fallbackExpense),
+          isPending: true,
+        };
+        const cachedExpenses = await this.getCachedExpenses(currentUser.id);
+        await this.cacheExpenses(
+          currentUser.id,
+          cachedExpenses.map((expense) =>
+            expense.id === id ? mappedExpense : expense,
+          ),
+        );
+
+        return { success: true, expense: mappedExpense };
       }
 
       const shouldRemoveOldReceipt =
@@ -352,12 +535,48 @@ class ExpenseService {
             : existingExpense?.receipt_path,
       };
 
-      return { success: true, expense: this.mapExpenseRecord(resolvedExpense) };
+      const mappedExpense = this.mapExpenseRecord(resolvedExpense);
+      const cachedExpenses = await this.getCachedExpenses(currentUser.id);
+      await this.cacheExpenses(
+        currentUser.id,
+        cachedExpenses.map((expense) =>
+          expense.id === id ? mappedExpense : expense,
+        ),
+      );
+
+      return { success: true, expense: mappedExpense };
     } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || "Failed to update expense",
+      const currentUser = await authService.getCurrentUser();
+      if (!currentUser) {
+        return {
+          success: false,
+          error: error.message || "Failed to update expense",
+        };
+      }
+
+      const cachedExpenses = await this.getCachedExpenses(currentUser.id);
+      const existingExpense = cachedExpenses.find((expense) => expense.id === id);
+      if (!existingExpense) {
+        return {
+          success: false,
+          error: error.message || "Failed to update expense",
+        };
+      }
+
+      const fallbackExpense: Expense = {
+        ...existingExpense,
+        ...updates,
+        date: updates.date ?? existingExpense.date,
+        isPending: true,
       };
+      await this.cacheExpenses(
+        currentUser.id,
+        cachedExpenses.map((expense) =>
+          expense.id === id ? fallbackExpense : expense,
+        ),
+      );
+
+      return { success: true, expense: fallbackExpense };
     }
   }
 
@@ -405,7 +624,12 @@ class ExpenseService {
         .from("expenses")
         .delete()
         .eq("user_id", currentUser.id);
-      if (error) throw error;
+      if (error) {
+        await this.cacheExpenses(currentUser.id, []);
+        return true;
+      }
+      await this.cacheExpenses(currentUser.id, []);
+      await this.setDeletedExpenseIds(currentUser.id, []);
       return true;
     } catch (error) {
       console.error("Error clearing expenses:", error);

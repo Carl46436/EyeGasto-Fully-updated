@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Image,
   KeyboardAvoidingView,
@@ -22,6 +21,7 @@ interface Props {
   onBackPress: () => void;
   onRegisterPress: () => void;
   onForgotPassword: (email: string) => Promise<void>;
+  onNotify?: (message: string, type?: "error" | "warning" | "success") => void;
 }
 
 export default function LoginScreen({
@@ -29,6 +29,7 @@ export default function LoginScreen({
   onBackPress,
   onRegisterPress,
   onForgotPassword,
+  onNotify,
 }: Props) {
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === "web" && width >= 960;
@@ -62,31 +63,19 @@ export default function LoginScreen({
       return;
     }
 
-    Alert.alert("Missing details", "Please enter both email and password.");
+    onNotify?.("Please enter both email and password.", "warning");
   };
 
   const handleForgotPassword = async () => {
     if (!email.trim()) {
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.alert("Type your email first to reset your password.");
-      } else {
-        Alert.alert(
-          "Enter your email",
-          "Type your email first to reset your password.",
-        );
-      }
+      onNotify?.("Type your email first to reset your password.", "warning");
       return;
     }
 
     try {
       await onForgotPassword(email.trim());
     } catch (error: any) {
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.alert(error.message || "Failed to send reset code.");
-        return;
-      }
-
-      Alert.alert("Reset failed", error.message || "Failed to send reset code.");
+      onNotify?.(error.message || "Failed to send reset code.", "error");
     }
   };
 

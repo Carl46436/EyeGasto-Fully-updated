@@ -3,15 +3,23 @@ import { Platform } from "react-native";
 
 const isWeb = Platform.OS === "web";
 const memoryStore: Record<string, string> = {};
-const STORAGE_FILE = `${FileSystem.documentDirectory ?? ""}eyegasto-storage.json`;
+const STORAGE_FILE =
+  !isWeb && FileSystem.documentDirectory
+    ? `${FileSystem.documentDirectory}eyegasto-storage.json`
+    : null;
 
 export const StorageKeys = {
   USERS: "users",
   CURRENT_USER: "currentUser",
   SUPABASE_SESSION: "supabase.auth.token",
   EXPENSES: "expenses",
+  EXPENSE_CACHE_PREFIX: "expenseCache",
+  EXPENSE_DELETED_PREFIX: "expenseDeleted",
   APP_VERSION: "appVersion",
+  ONBOARDING_INTRO_SEEN: "onboardingIntroSeen",
   DASHBOARD_PREFERENCES: "dashboardPreferences",
+  APP_LOGS: "appLogs",
+  PENDING_USER_UPDATES: "pendingUserUpdates",
 } as const;
 
 class StorageService {
@@ -37,7 +45,13 @@ class StorageService {
         return this.nativeCache;
       }
 
-      const fileInfo = await FileSystem.getInfoAsync(STORAGE_FILE);
+      // Guard against unavailable FileSystem on some environments (web)
+      if (!FileSystem.getInfoAsync) {
+        this.nativeCache = { ...memoryStore };
+        return this.nativeCache;
+      }
+
+      const fileInfo = await FileSystem.getInfoAsync(STORAGE_FILE as string);
       if (!fileInfo.exists) {
         this.nativeCache = {};
         return this.nativeCache;
@@ -56,7 +70,7 @@ class StorageService {
   private async writeNativeStore(store: Record<string, string>) {
     this.nativeCache = store;
 
-    if (!STORAGE_FILE) {
+    if (!STORAGE_FILE || !FileSystem.writeAsStringAsync) {
       Object.assign(memoryStore, store);
       return;
     }
@@ -132,10 +146,10 @@ class StorageService {
       }
 
       this.nativeCache = {};
-      if (STORAGE_FILE) {
-        const fileInfo = await FileSystem.getInfoAsync(STORAGE_FILE);
+      if (STORAGE_FILE && FileSystem.getInfoAsync && FileSystem.deleteAsync) {
+        const fileInfo = await FileSystem.getInfoAsync(STORAGE_FILE as string);
         if (fileInfo.exists) {
-          await FileSystem.deleteAsync(STORAGE_FILE, { idempotent: true });
+          await FileSystem.deleteAsync(STORAGE_FILE as string, { idempotent: true });
         }
       }
 

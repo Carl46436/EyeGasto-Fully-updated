@@ -11,6 +11,25 @@ export interface RecurringExpenseTemplate {
   isActive?: boolean;
 }
 
+export interface CategoryBudget {
+  id: string;
+  category: string;
+  limit: number;
+  note?: string;
+  updatedAt?: string;
+}
+
+export interface DebtItem {
+  id: string;
+  title: string;
+  amount: number;
+  dueDate: string;
+  person?: string;
+  note?: string;
+  isPaid?: boolean;
+  createdAt?: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -19,6 +38,8 @@ export interface User {
   avatar?: string;
   createdAt?: string | Date;
   recurringExpenses?: RecurringExpenseTemplate[];
+  categoryBudgets?: CategoryBudget[];
+  debtItems?: DebtItem[];
 }
 
 export interface Expense {

@@ -68,7 +68,8 @@ interface Props {
     id: string,
     updates: Partial<Expense>,
   ) => Promise<boolean> | boolean;
-  onUpdateUser?: (updates: Partial<User>) => Promise<void>;
+  onUpdateUser?: (updates: Partial<User>) => Promise<void> | Promise<boolean>;
+  onNotify?: (message: string, type?: "error" | "warning" | "success") => void;
   onChangePassword?: (
     oldPassword: string,
     newPassword: string,

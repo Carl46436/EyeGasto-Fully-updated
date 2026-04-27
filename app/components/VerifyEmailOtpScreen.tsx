@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Image,
   KeyboardAvoidingView,
@@ -27,6 +26,7 @@ interface Props {
   cardTitle?: string;
   cardSubtitle?: string;
   buttonLabel?: string;
+  onNotify?: (message: string, type?: "error" | "warning" | "success") => void;
 }
 
 export default function VerifyEmailOtpScreen({
@@ -39,6 +39,7 @@ export default function VerifyEmailOtpScreen({
   cardTitle = "Verify email",
   cardSubtitle = "Check your inbox for the 8-digit code from EyeGasto.",
   buttonLabel = "Verify email",
+  onNotify,
 }: Props) {
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === "web" && width >= 960;
@@ -58,10 +59,7 @@ export default function VerifyEmailOtpScreen({
     const normalizedToken = token.replace(/\D/g, "");
 
     if (normalizedToken.length !== 8) {
-      Alert.alert(
-        "Invalid code",
-        "Enter the 8-digit code sent to your email.",
-      );
+      onNotify?.("Enter the 8-digit code sent to your email.", "warning");
       return;
     }
 

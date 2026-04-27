@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -23,6 +23,20 @@ interface Props {
   onLoginPress: () => void;
 }
 
+const TERMS_MESSAGE =
+  "By creating an account, you agree to:\n\n" +
+  "1. Use EyeGasto for lawful personal or business expense tracking only.\n" +
+  "2. Provide accurate account details and keep your password secure.\n" +
+  "3. You are responsible for all activity that happens under your account.\n" +
+  "4. Upload only lawful, relevant, and non-harmful receipt images/content.\n" +
+  "5. Do not upload other people's sensitive data without permission.\n" +
+  "6. Keep your own backup of critical records and exported reports.\n" +
+  "7. Review exported/shared financial files carefully before sending.\n" +
+  "8. EyeGasto may update features and terms as the app improves.\n" +
+  "9. Continued use after updates means you accept the revised terms.\n" +
+  "10. If you disagree with these terms, do not create or use an account.\n\n" +
+  "Privacy note: Your account profile, expenses, and receipt files are processed to provide dashboard, sync, and reporting features.";
+
 export default function RegisterScreen({
   onRegister,
   onBackPress,
@@ -34,6 +48,7 @@ export default function RegisterScreen({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [errors, setErrors] = useState({
     name: "",
@@ -103,17 +118,20 @@ export default function RegisterScreen({
   const showTerms = () => {
     const message =
       "By creating an account, you agree to:\n\n" +
-      "1. Use EyeGasto for personal expense tracking.\n" +
-      "2. Keep your account credentials secure.\n" +
-      "3. Upload only lawful and relevant receipt images.\n" +
-      "4. Manage your own exported and shared financial information carefully.";
+      "1. Use EyeGasto for lawful personal or business expense tracking only.\n" +
+      "2. Provide accurate account details and keep your password secure.\n" +
+      "3. You are responsible for all activity that happens under your account.\n" +
+      "4. Upload only lawful, relevant, and non-harmful receipt images/content.\n" +
+      "5. Do not upload other people’s sensitive data without permission.\n" +
+      "6. Keep your own backup of critical records and exported reports.\n" +
+      "7. Review exported/shared financial files carefully before sending.\n" +
+      "8. EyeGasto may update features and terms as the app improves.\n" +
+      "9. Continued use after updates means you accept the revised terms.\n" +
+      "10. If you disagree with these terms, do not create or use an account.\n\n" +
+      "Privacy note: Your account profile, expenses, and receipt files are processed to provide dashboard, sync, and reporting features.";
 
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.alert(message);
-      return;
-    }
-
-    Alert.alert("Terms and Conditions", message);
+    void message;
+    setShowTermsModal(true);
   };
 
   return (
@@ -353,6 +371,44 @@ export default function RegisterScreen({
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={showTermsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTermsModal(false)}
+      >
+        <View style={styles.termsModalBackdrop}>
+          <BlurView intensity={30} tint="dark" style={styles.termsModalCard}>
+            <View style={styles.termsModalHeader}>
+              <Text style={styles.termsModalTitle}>Terms and Conditions</Text>
+              <TouchableOpacity
+                onPress={() => setShowTermsModal(false)}
+                style={styles.termsModalClose}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={18} color="#E2E8F0" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.termsModalScroll}
+              contentContainerStyle={styles.termsModalScrollContent}
+              showsVerticalScrollIndicator
+            >
+              <Text style={styles.termsModalBody}>{TERMS_MESSAGE}</Text>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.termsModalButton}
+              onPress={() => setShowTermsModal(false)}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.termsModalButtonText}>I Understand</Text>
+            </TouchableOpacity>
+          </BlurView>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -641,5 +697,67 @@ const styles = StyleSheet.create({
   switchText: {
     color: "#B6C2D3",
     fontSize: 14,
+  },
+  termsModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(2, 6, 23, 0.62)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 28,
+  },
+  termsModalCard: {
+    width: "100%",
+    maxWidth: 560,
+    maxHeight: "86%",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.2)",
+    backgroundColor: "rgba(8, 15, 30, 0.94)",
+    padding: 16,
+  },
+  termsModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  termsModalTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#F8FAFC",
+  },
+  termsModalClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
+  },
+  termsModalScroll: {
+    marginTop: 14,
+    maxHeight: 380,
+  },
+  termsModalScrollContent: {
+    paddingBottom: 8,
+  },
+  termsModalBody: {
+    fontSize: 14,
+    lineHeight: 23,
+    color: "#CBD5E1",
+  },
+  termsModalButton: {
+    marginTop: 14,
+    borderRadius: 999,
+    minHeight: 46,
+    backgroundColor: "#7DD3FC",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  termsModalButtonText: {
+    color: "#082F49",
+    fontSize: 14,
+    fontWeight: "900",
   },
 });

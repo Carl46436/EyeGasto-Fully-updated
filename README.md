@@ -1,7 +1,6 @@
 # 👁️ EyeGasto Expense Tracker
 
 ![React Native](https://img.shields.io/badge/React%20Native-0.7+-blue?logo=react)
-![Node.js](https://img.shields.io/badge/Node.js-Backend-green?logo=node.js)
 ![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?logo=supabase)
 ![Status](https://img.shields.io/badge/Status-Active-success)
 

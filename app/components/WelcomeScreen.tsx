@@ -12,6 +12,14 @@ import {
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import Svg, {
+  Circle,
+  Defs,
+  Line as SvgLine,
+  LinearGradient as SvgLinearGradient,
+  Path,
+  Stop,
+} from "react-native-svg";
 
 interface Props {
   onLoginPress: () => void;
@@ -24,11 +32,50 @@ const featureList = [
   "One account. Total sync. Access your data on your phone or the web.",
 ];
 
-const insightRows = [
-  { label: "Receipt-backed entries", value: "Visual proof" },
-  { label: "Recurring planning", value: "Monthly flow" },
-  { label: "Smart exports", value: "CSV, PDF, Summary Reports" },
+const guideSteps = [
+  {
+    title: "1. Sign in or create an account",
+    body: "Use your email to access your personal dashboard and sync your records.",
+  },
+  {
+    title: "2. Add expenses with receipts",
+    body: "Save amount, category, notes, and image proof in one workflow.",
+  },
+  {
+    title: "3. Review stats and reports",
+    body: "Open analytics, gallery, and summary exports to monitor spending.",
+  },
 ];
+
+const MOBILE_TREND_POINTS = [18, 24, 20, 28, 62, 100];
+const MOBILE_TREND_LABELS = ["W1", "W2", "W3", "W4", "W5", "W6"];
+const WEB_TREND_POINTS = [18, 24, 20, 28, 62, 100];
+const WEB_TREND_LABELS = ["W1", "W2", "W3", "W4", "W5", "W6"];
+
+const createTrendGeometry = (
+  points: number[],
+  width: number,
+  height: number,
+  inset = 14,
+) => {
+  const drawableWidth = Math.max(width - inset * 2, 1);
+  const slotWidth = drawableWidth / Math.max(points.length - 1, 1);
+  const circles = points.map((value, index) => {
+    const x = inset + slotWidth * index;
+    const y = height - (value / 100) * height;
+    return { x, y };
+  });
+
+  const path = circles
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ");
+
+  const firstX = circles[0]?.x ?? inset;
+  const lastX = circles[circles.length - 1]?.x ?? width - inset;
+  const areaPath = `${path} L ${lastX} ${height} L ${firstX} ${height} Z`;
+
+  return { circles, path, areaPath };
+};
 
 export default function WelcomeScreen({
   onLoginPress,
@@ -36,6 +83,14 @@ export default function WelcomeScreen({
 }: Props) {
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === "web" && width >= 960;
+  const mobileChartWidth = Math.min(Math.max(width - 120, 240), 300);
+  const mobileTrend = createTrendGeometry(
+    MOBILE_TREND_POINTS,
+    mobileChartWidth,
+    136,
+    12,
+  );
+  const webTrend = createTrendGeometry(WEB_TREND_POINTS, 520, 170, 16);
 
   if (!isWebWide) {
     return (
@@ -79,31 +134,114 @@ export default function WelcomeScreen({
           </View>
 
           <BlurView intensity={28} tint="dark" style={styles.mobilePreview}>
-            <View style={styles.mobilePreviewHeader}>
+            <View style={styles.visualHeader}>
               <Text style={styles.visualEyebrow}>Quick Look</Text>
               <Text style={styles.mobilePreviewTitle}>
-                See where your money goes.
+                Built for optimized oversight
               </Text>
             </View>
 
-            <View style={styles.mobileBalanceCard}>
-              <Text style={styles.mockLabel}>This month</Text>
-              <Text style={styles.mobileBalanceValue}>PHP 18,420</Text>
-              <Text style={styles.mockMeta}>Budget usage 73%</Text>
+            <View style={styles.mockFrame}>
+              <View style={styles.mockTopBar}>
+                <View style={styles.mockDots}>
+                  <View
+                    style={[styles.mockDot, { backgroundColor: "#F97316" }]}
+                  />
+                  <View
+                    style={[styles.mockDot, { backgroundColor: "#22C55E" }]}
+                  />
+                  <View
+                    style={[styles.mockDot, { backgroundColor: "#38BDF8" }]}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.mockBody}>
+                <View style={styles.mockBalanceCard}>
+                  <Text style={styles.mockLabel}>This month</Text>
+                  <Text style={styles.mockValue}>PHP 18,420</Text>
+                  <Text style={styles.mockMeta}>Budget usage 73%</Text>
+                </View>
+
+                <View style={styles.mobileMockChart}>
+                  <Text style={styles.mockTrendTitle}>Spending Momentum</Text>
+                  <Svg width={mobileChartWidth} height={136}>
+                    <Defs>
+                      <SvgLinearGradient
+                        id="mobileTrendFill"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <Stop
+                          offset="0%"
+                          stopColor="#38BDF8"
+                          stopOpacity="0.34"
+                        />
+                        <Stop
+                          offset="100%"
+                          stopColor="#38BDF8"
+                          stopOpacity="0.02"
+                        />
+                      </SvgLinearGradient>
+                    </Defs>
+                    <SvgLine
+                      x1="12"
+                      y1="108"
+                      x2={Math.max(mobileChartWidth - 12, 12)}
+                      y2="108"
+                      stroke="rgba(148,163,184,0.28)"
+                      strokeWidth="1.3"
+                      strokeDasharray="5 5"
+                    />
+                    <Path
+                      d={mobileTrend.areaPath}
+                      fill="url(#mobileTrendFill)"
+                    />
+                    <Path
+                      d={mobileTrend.path}
+                      stroke="#37D7E6"
+                      strokeWidth="3.4"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {mobileTrend.circles.map((point, index) => (
+                      <Circle
+                        key={`mobile-trend-dot-${index}`}
+                        cx={point.x}
+                        cy={point.y}
+                        r="4.4"
+                        fill="#38BDF8"
+                        stroke="#7DD3FC"
+                        strokeWidth="2"
+                      />
+                    ))}
+                  </Svg>
+                  <View style={styles.mobileTrendLabelsRow}>
+                    {MOBILE_TREND_LABELS.map((label) => (
+                      <Text
+                        key={`mobile-label-${label}`}
+                        style={styles.mobileTrendLabel}
+                      >
+                        {label}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              </View>
             </View>
 
-            <View style={styles.mobileChart}>
-              {[52, 88, 70, 116].map((height, index) => (
-                <View key={`mobile-bar-${index}`} style={styles.mobileChartCol}>
-                  <View style={[styles.mobileChartBar, { height }]} />
-                  <Text style={styles.mockBarLabel}>W{index + 1}</Text>
-                </View>
-              ))}
+            <View style={styles.footerMetaRow}>
+              <Text style={styles.footerMetaText}>Cross-device sync ready</Text>
+              <Text style={styles.footerMetaDivider}>/</Text>
+              <Text style={styles.footerMetaText}>Web and mobile workflow</Text>
             </View>
           </BlurView>
 
           <BlurView
-            intensity={22}
+            intensity={18}
             tint="dark"
             style={styles.mobileFeaturePanel}
           >
@@ -194,6 +332,18 @@ export default function WelcomeScreen({
             </TouchableOpacity>
           </View>
 
+          <View style={styles.guidePanel}>
+            <Text style={styles.guideHeading}>Quick Guide Before Login</Text>
+            <View style={styles.guideGrid}>
+              {guideSteps.map((step) => (
+                <View key={step.title} style={styles.guideCard}>
+                  <Text style={styles.guideCardTitle}>{step.title}</Text>
+                  <Text style={styles.guideCardBody}>{step.body}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
           <View style={styles.featureStack}>
             {featureList.map((feature) => (
               <View key={feature} style={styles.featureRow}>
@@ -246,27 +396,74 @@ export default function WelcomeScreen({
               </View>
 
               <View style={styles.mockChart}>
-                {[58, 96, 74, 128].map((height, index) => (
-                  <View key={`bar-${index}`} style={styles.mockBarCol}>
-                    <View style={[styles.mockBar, { height }]} />
-                    <Text style={styles.mockBarLabel}>W{index + 1}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.mockList}>
-                {insightRows.map((row) => (
-                  <View key={row.label} style={styles.mockListRow}>
-                    <Text style={styles.mockListLabel}>{row.label}</Text>
-                    <Text style={styles.mockListValue}>{row.value}</Text>
-                  </View>
-                ))}
+                <Text style={styles.mockTrendTitle}>Spending Momentum</Text>
+                <Svg width={520} height={170}>
+                  <Defs>
+                    <SvgLinearGradient
+                      id="webTrendFill"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <Stop
+                        offset="0%"
+                        stopColor="#38BDF8"
+                        stopOpacity="0.32"
+                      />
+                      <Stop
+                        offset="100%"
+                        stopColor="#38BDF8"
+                        stopOpacity="0.03"
+                      />
+                    </SvgLinearGradient>
+                  </Defs>
+                  <SvgLine
+                    x1="16"
+                    y1="146"
+                    x2="504"
+                    y2="146"
+                    stroke="rgba(148,163,184,0.28)"
+                    strokeWidth="1.4"
+                    strokeDasharray="5 5"
+                  />
+                  <Path d={webTrend.areaPath} fill="url(#webTrendFill)" />
+                  <Path
+                    d={webTrend.path}
+                    stroke="#37D7E6"
+                    strokeWidth="4"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {webTrend.circles.map((point, index) => (
+                    <Circle
+                      key={`web-trend-dot-${index}`}
+                      cx={point.x}
+                      cy={point.y}
+                      r="5"
+                      fill="#38BDF8"
+                      stroke="#7DD3FC"
+                      strokeWidth="2"
+                    />
+                  ))}
+                </Svg>
+                <View style={styles.mockTrendLabelRow}>
+                  {WEB_TREND_LABELS.map((label) => (
+                    <Text
+                      key={`web-label-${label}`}
+                      style={styles.mockBarLabel}
+                    >
+                      {label}
+                    </Text>
+                  ))}
+                </View>
               </View>
             </View>
           </View>
 
           <View style={styles.footerMetaRow}>
-            <Text style={styles.footerMetaText}>Cross-device sync ready</Text>
+            <Text style={styles.footerMetaText}>View</Text>
             <Text style={styles.footerMetaDivider}>/</Text>
             <Text style={styles.footerMetaText}>Web and mobile workflow</Text>
           </View>
@@ -306,7 +503,7 @@ const styles = StyleSheet.create({
   },
   mobileScrollContent: {
     paddingHorizontal: 22,
-    paddingTop: 34,
+    paddingTop: Platform.OS === "android" ? 66 : 44,
     paddingBottom: 30,
     gap: 18,
   },
@@ -323,8 +520,8 @@ const styles = StyleSheet.create({
   },
   mobileHeadline: {
     marginTop: 12,
-    fontSize: 36,
-    lineHeight: 40,
+    fontSize: 30,
+    lineHeight: 36,
     fontWeight: "900",
     color: "#F8FAFC",
   },
@@ -351,6 +548,121 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     fontWeight: "900",
     color: "#F8FAFC",
+  },
+  mobileWelcomeOverlay: {
+    borderRadius: 22,
+    padding: 16,
+    backgroundColor: "rgba(9, 18, 38, 0.94)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+    gap: 14,
+  },
+  mobileWelcomeTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  mobileWelcomeTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    color: "#F8FAFC",
+  },
+  mobileWelcomeSubtitle: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#94A3B8",
+    maxWidth: 250,
+  },
+  mobileWelcomeFeatureCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(125, 211, 252, 0.25)",
+    padding: 16,
+    alignItems: "center",
+  },
+  mobileWelcomeIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(2, 6, 23, 0.6)",
+    borderWidth: 1,
+    borderColor: "rgba(125, 211, 252, 0.32)",
+  },
+  mobileWelcomeFeatureTitle: {
+    marginTop: 10,
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: "900",
+    color: "#F8FAFC",
+    textAlign: "center",
+  },
+  mobileWelcomeFeatureBody: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#CBD5E1",
+    textAlign: "center",
+  },
+  mobileTrendCard: {
+    marginTop: 14,
+    width: "100%",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.14)",
+    backgroundColor: "rgba(8, 15, 30, 0.76)",
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 8,
+    alignItems: "center",
+  },
+  mobileTrendTitle: {
+    alignSelf: "flex-start",
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#E2E8F0",
+    marginBottom: 4,
+  },
+  mobileTrendLabelsRow: {
+    width: "100%",
+    marginTop: 2,
+    paddingHorizontal: 4,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  mobileTrendLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#CBD5E1",
+  },
+  mobileWelcomeFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  mobileWelcomeDot: {
+    width: 18,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: "#67E8F9",
+  },
+  mobileWelcomeNext: {
+    minWidth: 76,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: "#7DD3FC",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mobileWelcomeNextText: {
+    color: "#082F49",
+    fontSize: 12,
+    fontWeight: "900",
   },
   mobileBalanceCard: {
     borderRadius: 22,
@@ -399,6 +711,38 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(8, 15, 30, 0.72)",
     padding: 18,
     gap: 12,
+  },
+  guidePanel: {
+    marginTop: 28,
+    gap: 12,
+  },
+  guideGrid: {
+    gap: 12,
+  },
+  guideHeading: {
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: "#67E8F9",
+  },
+  guideCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+    backgroundColor: "rgba(15, 23, 42, 0.72)",
+    padding: 16,
+  },
+  guideCardTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#F8FAFC",
+  },
+  guideCardBody: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#CBD5E1",
   },
   mobileActionStack: {
     gap: 12,
@@ -648,14 +992,36 @@ const styles = StyleSheet.create({
   mockChart: {
     borderRadius: 22,
     padding: 18,
-    minHeight: 220,
+    minHeight: 248,
     backgroundColor: "rgba(15, 23, 42, 0.92)",
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.1)",
+    alignItems: "center",
+  },
+  mobileMockChart: {
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
+    minHeight: 214,
+    backgroundColor: "rgba(15, 23, 42, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.1)",
+    alignItems: "center",
+  },
+  mockTrendTitle: {
+    alignSelf: "flex-start",
+    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#E2E8F0",
+  },
+  mockTrendLabelRow: {
+    width: "100%",
+    marginTop: 6,
+    paddingHorizontal: 12,
     flexDirection: "row",
-    alignItems: "flex-end",
     justifyContent: "space-between",
-    gap: 12,
   },
   mockBarCol: {
     flex: 1,

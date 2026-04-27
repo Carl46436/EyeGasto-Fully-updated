@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -41,6 +40,7 @@ interface Props {
     category?: string;
     notes?: string;
   };
+  onNotify?: (message: string, type?: "error" | "warning" | "success") => void;
 }
 
 const DEFAULT_CATEGORIES = [
@@ -64,6 +64,7 @@ export default function AddExpenseForm({
   embedded = false,
   currencyCode = "PHP",
   initialValues,
+  onNotify,
 }: Props) {
   const { width } = useWindowDimensions();
   const isCompact = width < 420;
@@ -105,9 +106,9 @@ export default function AddExpenseForm({
         await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (permission.status !== "granted") {
-        Alert.alert(
-          "Permission needed",
+        onNotify?.(
           "Photo access is required so receipts can be attached to expenses.",
+          "warning",
         );
         return;
       }
@@ -124,7 +125,7 @@ export default function AddExpenseForm({
       }
     } catch (error) {
       console.error("Failed to pick receipt image", error);
-      Alert.alert("Upload failed", "We could not select that image.");
+      onNotify?.("We could not select that image.", "error");
     }
   };
 
@@ -133,9 +134,9 @@ export default function AddExpenseForm({
       const permission = await ImagePicker.requestCameraPermissionsAsync();
 
       if (permission.status !== "granted") {
-        Alert.alert(
-          "Permission needed",
+        onNotify?.(
           "Camera access is required so you can capture a receipt directly.",
+          "warning",
         );
         return;
       }
@@ -152,7 +153,7 @@ export default function AddExpenseForm({
       }
     } catch (error) {
       console.error("Failed to capture receipt image", error);
-      Alert.alert("Camera failed", "We could not open the camera.");
+      onNotify?.("We could not open the camera.", "error");
     }
   };
 
@@ -163,10 +164,7 @@ export default function AddExpenseForm({
       Number.isNaN(numericAmount) ||
       numericAmount <= 0
     ) {
-      Alert.alert(
-        "Missing details",
-        "Please enter a valid expense name and amount.",
-      );
+      onNotify?.("Please enter a valid expense name and amount.", "warning");
       return;
     }
 
