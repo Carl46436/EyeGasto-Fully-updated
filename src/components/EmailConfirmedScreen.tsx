@@ -14,19 +14,47 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { createShadow } from "@/src/utils/shadow";
+import { AppLanguage, resolveUiLanguage } from "@/src/i18n/appLanguage";
 
 interface Props {
+  language?: AppLanguage;
   onLoginPress: () => void;
   onBackPress: () => void;
 }
 
 export default function EmailConfirmedScreen({
+  language = "English",
   onLoginPress,
   onBackPress,
 }: Props) {
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === "web" && width >= 960;
   const entranceAnim = useRef(new Animated.Value(0)).current;
+  const uiLanguage = resolveUiLanguage(language);
+  const copy =
+    uiLanguage === "Filipino"
+      ? {
+          back: "Back",
+          eyebrow: "Handa na ang account",
+          title: "Matagumpay na na-verify ang email.",
+          subtitle:
+            "Verified na ang account mo. Magpatuloy sa login screen at mag-sign in para mabuksan ang dashboard mo.",
+          cardTitle: "Handa ka na",
+          cardSubtitle:
+            "Tapos na ang verification. Gamitin ang email o username at password mo para mag-log in.",
+          button: "Pumunta sa login",
+        }
+      : {
+          back: "Back",
+          eyebrow: "Account ready",
+          title: "Email confirmed successfully.",
+          subtitle:
+            "Your account is now verified. Continue to the login screen and sign in to open your dashboard.",
+          cardTitle: "You're all set",
+          cardSubtitle:
+            "Verification is complete. Use your email or username and password to log in.",
+          button: "Go to login",
+        };
 
   useEffect(() => {
     Animated.timing(entranceAnim, {
@@ -75,7 +103,7 @@ export default function EmailConfirmedScreen({
           <View style={[styles.copyColumn, isWebWide && styles.copyColumnWide]}>
             <TouchableOpacity onPress={onBackPress} style={styles.backButton}>
               <Ionicons name="arrow-back" size={16} color="#E0F2FE" />
-              <Text style={styles.backText}>Back</Text>
+              <Text style={styles.backText}>{copy.back}</Text>
             </TouchableOpacity>
 
             <View style={styles.brandRow}>
@@ -93,14 +121,11 @@ export default function EmailConfirmedScreen({
               </View>
             </View>
 
-            <Text style={styles.eyebrow}>Account ready</Text>
+            <Text style={styles.eyebrow}>{copy.eyebrow}</Text>
             <Text style={[styles.title, isWebWide && styles.titleWide]}>
-              Email confirmed successfully.
+              {copy.title}
             </Text>
-            <Text style={styles.subtitle}>
-              Your account is now verified. Continue to the login screen and
-              sign in to open your dashboard.
-            </Text>
+            <Text style={styles.subtitle}>{copy.subtitle}</Text>
           </View>
 
           <BlurView intensity={30} tint="dark" style={styles.card}>
@@ -119,17 +144,15 @@ export default function EmailConfirmedScreen({
               </LinearGradient>
             </View>
 
-            <Text style={styles.cardTitle}>You&apos;re all set</Text>
-            <Text style={styles.cardSubtitle}>
-              Verification is complete. Use your email and password to log in.
-            </Text>
+            <Text style={styles.cardTitle}>{copy.cardTitle}</Text>
+            <Text style={styles.cardSubtitle}>{copy.cardSubtitle}</Text>
 
             <TouchableOpacity
               style={styles.primaryButton}
               onPress={onLoginPress}
               activeOpacity={0.88}
             >
-              <Text style={styles.primaryButtonText}>Go to login</Text>
+              <Text style={styles.primaryButtonText}>{copy.button}</Text>
               <Ionicons name="arrow-forward" size={16} color="#020617" />
             </TouchableOpacity>
           </BlurView>
@@ -205,11 +228,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     alignSelf: "flex-start",
+    paddingRight: 4,
   },
   backText: {
     color: "#E0F2FE",
     fontSize: 14,
     fontWeight: "700",
+    flexShrink: 0,
+    paddingRight: 2,
+    includeFontPadding: false,
   },
   brandRow: {
     marginTop: 10,

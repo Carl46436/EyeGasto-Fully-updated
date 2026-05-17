@@ -15,14 +15,17 @@ import {
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { AppLanguage, resolveUiLanguage } from "@/src/i18n/appLanguage";
 
 interface Props {
+  language?: AppLanguage;
   onBackPress: () => void;
   onSubmit: (password: string) => Promise<void>;
   onNotify?: (message: string, type?: "error" | "warning" | "success") => void;
 }
 
 export default function ResetPasswordScreen({
+  language = "English",
   onBackPress,
   onSubmit,
   onNotify,
@@ -30,6 +33,49 @@ export default function ResetPasswordScreen({
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === "web" && width >= 960;
   const entranceAnim = useRef(new Animated.Value(0)).current;
+  const uiLanguage = resolveUiLanguage(language);
+  const copy =
+    uiLanguage === "Filipino"
+      ? {
+          back: "Back",
+          eyebrow: "Password recovery",
+          title: "Pumili ng bagong password.",
+          subtitle:
+            "Valid pa ang recovery link mo. Magtakda ng bagong password sa ibaba, tapos mag-log in ulit gamit ang updated mong credentials.",
+          cardTitle: "I-reset ang password",
+          cardSubtitle:
+            "Gumamit ng hindi bababa sa 6 characters para sa bagong password mo.",
+          newPassword: "Bagong password",
+          newPasswordPlaceholder: "Ilagay ang bagong password",
+          confirmPassword: "Kumpirmahin ang password",
+          confirmPasswordPlaceholder: "Ulitin ang password mo",
+          update: "I-update ang password",
+          updating: "Ina-update...",
+          empty: "Maglagay ng bagong password para magpatuloy.",
+          short: "Dapat hindi bababa sa 6 characters ang bagong password mo.",
+          mismatch:
+            "Hindi magkapareho ang password. Pakilagay ulit ang parehong fields.",
+        }
+      : {
+          back: "Back",
+          eyebrow: "Password recovery",
+          title: "Choose a new password.",
+          subtitle:
+            "Your recovery link is valid. Set a new password below, then log back in with your updated credentials.",
+          cardTitle: "Reset password",
+          cardSubtitle:
+            "Use at least 6 characters for your new password.",
+          newPassword: "New password",
+          newPasswordPlaceholder: "Enter a new password",
+          confirmPassword: "Confirm password",
+          confirmPasswordPlaceholder: "Confirm your password",
+          update: "Update password",
+          updating: "Updating...",
+          empty: "Enter a new password to continue.",
+          short: "Your new password must be at least 6 characters.",
+          mismatch:
+            "Passwords do not match. Please re-enter both fields.",
+        };
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -47,17 +93,17 @@ export default function ResetPasswordScreen({
 
   const handleSubmit = async () => {
     if (!password.trim()) {
-      onNotify?.("Enter a new password to continue.", "warning");
+      onNotify?.(copy.empty, "warning");
       return;
     }
 
     if (password.length < 6) {
-      onNotify?.("Your new password must be at least 6 characters.", "warning");
+      onNotify?.(copy.short, "warning");
       return;
     }
 
     if (password !== confirmPassword) {
-      onNotify?.("Passwords do not match. Please re-enter both fields.", "warning");
+      onNotify?.(copy.mismatch, "warning");
       return;
     }
 
@@ -116,7 +162,7 @@ export default function ResetPasswordScreen({
             >
               <TouchableOpacity onPress={onBackPress} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={16} color="#E0F2FE" />
-                <Text style={styles.backText}>Back</Text>
+                <Text style={styles.backText}>{copy.back}</Text>
               </TouchableOpacity>
 
               <View style={styles.brandRow}>
@@ -134,24 +180,19 @@ export default function ResetPasswordScreen({
                 </View>
               </View>
 
-              <Text style={styles.eyebrow}>Password recovery</Text>
+              <Text style={styles.eyebrow}>{copy.eyebrow}</Text>
               <Text style={[styles.title, isWebWide && styles.titleWide]}>
-                Choose a new password.
+                {copy.title}
               </Text>
-              <Text style={styles.subtitle}>
-                Your recovery link is valid. Set a new password below, then log
-                back in with your updated credentials.
-              </Text>
+              <Text style={styles.subtitle}>{copy.subtitle}</Text>
             </View>
 
             <BlurView intensity={30} tint="dark" style={styles.card}>
-              <Text style={styles.cardTitle}>Reset password</Text>
-              <Text style={styles.cardSubtitle}>
-                Use at least 6 characters for your new password.
-              </Text>
+              <Text style={styles.cardTitle}>{copy.cardTitle}</Text>
+              <Text style={styles.cardSubtitle}>{copy.cardSubtitle}</Text>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>New password</Text>
+                <Text style={styles.label}>{copy.newPassword}</Text>
                 <View style={styles.inputWrapper}>
                   <Ionicons
                     name="lock-closed-outline"
@@ -161,7 +202,7 @@ export default function ResetPasswordScreen({
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="Enter a new password"
+                    placeholder={copy.newPasswordPlaceholder}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
@@ -183,7 +224,7 @@ export default function ResetPasswordScreen({
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Confirm password</Text>
+                <Text style={styles.label}>{copy.confirmPassword}</Text>
                 <View style={styles.inputWrapper}>
                   <Ionicons
                     name="shield-checkmark-outline"
@@ -193,7 +234,7 @@ export default function ResetPasswordScreen({
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="Confirm your password"
+                    placeholder={copy.confirmPasswordPlaceholder}
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
                     secureTextEntry={!showConfirmPassword}
@@ -224,7 +265,7 @@ export default function ResetPasswordScreen({
                 disabled={isSubmitting}
               >
                 <Text style={styles.primaryButtonText}>
-                  {isSubmitting ? "Updating..." : "Update password"}
+                  {isSubmitting ? copy.updating : copy.update}
                 </Text>
                 <Ionicons name="arrow-forward" size={16} color="#020617" />
               </TouchableOpacity>
@@ -305,11 +346,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     alignSelf: "flex-start",
+    paddingRight: 4,
   },
   backText: {
     color: "#E0F2FE",
     fontSize: 14,
     fontWeight: "700",
+    flexShrink: 0,
+    paddingRight: 2,
+    includeFontPadding: false,
   },
   brandRow: {
     marginTop: 10,

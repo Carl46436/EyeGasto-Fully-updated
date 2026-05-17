@@ -33,6 +33,7 @@ export interface DebtItem {
 export interface User {
   id: string;
   email: string;
+  username?: string;
   name: string;
   password?: string;
   avatar?: string;
@@ -54,3 +55,5 @@ export interface Expense {
   receiptPath?: string | null;
   isPending?: boolean;
 }
+
+export type SyncStatus = "idle" | "offline" | "syncing" | "synced" | "error";

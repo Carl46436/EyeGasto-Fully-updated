@@ -1,8 +1,15 @@
-import React from "react";
-import { View, StyleSheet, Text } from "react-native";
+import React, { useEffect, useRef } from "react";
+import {
+  View,
+  StyleSheet,
+  Text,
+  Animated,
+  Platform,
+} from "react-native";
 import ExpenseItem from "./ExpenseItem";
 import { Expense } from "@/src/types";
 import { CurrencyCode } from "@/src/services/currency";
+import { AppLanguage, resolveUiLanguage } from "@/src/i18n/appLanguage";
 
 interface Props {
   expenses: Expense[];
@@ -12,6 +19,7 @@ interface Props {
   currencyCode?: CurrencyCode;
   emptyTitle?: string;
   emptySubtitle?: string;
+  language?: AppLanguage;
 }
 
 export default function ExpenseList({
@@ -22,11 +30,43 @@ export default function ExpenseList({
   currencyCode = "PHP",
   emptyTitle = "No expenses yet",
   emptySubtitle = "Add your first expense, attach a receipt, and start building your budget history.",
+  language = "English",
 }: Props) {
   const isLight = mode === "light";
+  const uiLanguage = resolveUiLanguage(language);
+  const todayLabel = uiLanguage === "Filipino" ? "Ngayon" : "Today";
+  const yesterdayLabel = uiLanguage === "Filipino" ? "Kahapon" : "Yesterday";
+  const emptyAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (expenses.length === 0) {
+      emptyAnim.setValue(0);
+      Animated.timing(emptyAnim, {
+        toValue: 1,
+        duration: 320,
+        useNativeDriver: Platform.OS !== "web",
+      }).start();
+    }
+  }, [emptyAnim, expenses.length]);
+
   if (expenses.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
+      <Animated.View
+        style={[
+          styles.emptyContainer,
+          {
+            opacity: emptyAnim,
+            transform: [
+              {
+                translateY: emptyAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [12, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         <Text style={[styles.emptyText, isLight && styles.emptyTextLight]}>
           {emptyTitle}
         </Text>
@@ -35,7 +75,7 @@ export default function ExpenseList({
         >
           {emptySubtitle}
         </Text>
-      </View>
+      </Animated.View>
     );
   }
 
@@ -49,8 +89,8 @@ export default function ExpenseList({
       const dateStr = new Date(expense.date).toLocaleDateString();
       let label = dateStr;
       
-      if (dateStr === today) label = "Today";
-      else if (dateStr === yesterday) label = "Yesterday";
+      if (dateStr === today) label = todayLabel;
+      else if (dateStr === yesterday) label = yesterdayLabel;
       
       if (!groups[label]) groups[label] = [];
       groups[label].push(expense);
@@ -61,10 +101,10 @@ export default function ExpenseList({
 
   const grouped = groupExpenses();
   const sortedKeys = Object.keys(grouped).sort((a, b) => {
-    if (a === "Today") return -1;
-    if (b === "Today") return 1;
-    if (a === "Yesterday") return -1;
-    if (b === "Yesterday") return 1;
+    if (a === todayLabel) return -1;
+    if (b === todayLabel) return 1;
+    if (a === yesterdayLabel) return -1;
+    if (b === yesterdayLabel) return 1;
     return new Date(b).getTime() - new Date(a).getTime();
   });
 
@@ -97,6 +137,7 @@ export default function ExpenseList({
               isPending={item.isPending}
               mode={mode}
               currencyCode={currencyCode}
+              language={language}
               onDelete={onDelete ? () => onDelete(item.id) : undefined}
               onPress={onEdit ? () => onEdit(item) : undefined}
             />

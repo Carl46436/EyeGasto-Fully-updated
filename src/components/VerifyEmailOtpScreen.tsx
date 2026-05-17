@@ -15,39 +15,77 @@ import {
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { AppLanguage, resolveUiLanguage } from "@/src/i18n/appLanguage";
 
 interface Props {
-  onLogin: (email: string, password: string) => void;
+  language?: AppLanguage;
+  email: string;
   onBackPress: () => void;
-  onRegisterPress: () => void;
-  onForgotPassword: (email: string) => Promise<void>;
+  onVerify: (token: string) => Promise<void>;
+  eyebrow?: string;
+  title?: string;
+  subtitle?: string;
+  cardTitle?: string;
+  cardSubtitle?: string;
+  buttonLabel?: string;
   onNotify?: (message: string, type?: "error" | "warning" | "success") => void;
 }
 
-export default function LoginScreen({
-  onLogin,
+export default function VerifyEmailOtpScreen({
+  language = "English",
+  email,
   onBackPress,
-  onRegisterPress,
-  onForgotPassword,
+  onVerify,
+  eyebrow,
+  title,
+  subtitle,
+  cardTitle,
+  cardSubtitle,
+  buttonLabel,
   onNotify,
 }: Props) {
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === "web" && width >= 960;
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-
-  const scrollRef = useRef<ScrollView>(null);
-  const passwordRef = useRef<TextInput>(null);
   const entranceAnim = useRef(new Animated.Value(0)).current;
-
-  const scrollToField = (y: number) => {
-    if (Platform.OS === "web" || isWebWide) {
-      return;
-    }
-
-    scrollRef.current?.scrollTo({ y, animated: true });
-  };
+  const [token, setToken] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const uiLanguage = resolveUiLanguage(language);
+  const copy =
+    uiLanguage === "Filipino"
+      ? {
+          back: "Back",
+          eyebrow: "Email verification",
+          title: "Ilagay ang 8-digit code mo.",
+          subtitle: `Nagpadala kami ng verification code sa ${email}. Ilagay ito rito para matapos ang paggawa ng account mo.`,
+          cardTitle: "I-verify ang email",
+          cardSubtitle:
+            "Tingnan ang inbox mo para sa 8-digit code mula sa EyeGasto.",
+          label: "Verification code",
+          placeholder: "12345678",
+          submit: "I-verify ang email",
+          submitting: "Vine-verify...",
+          invalid: "Ilagay ang 8-digit code na ipinadala sa email mo.",
+        }
+      : {
+          back: "Back",
+          eyebrow: "Email verification",
+          title: "Enter your 8-digit code.",
+          subtitle: `We sent a verification code to ${email}. Enter it here to finish creating your account.`,
+          cardTitle: "Verify email",
+          cardSubtitle:
+            "Check your inbox for the 8-digit code from EyeGasto.",
+          label: "Verification code",
+          placeholder: "12345678",
+          submit: "Verify email",
+          submitting: "Verifying...",
+          invalid: "Enter the 8-digit code sent to your email.",
+        };
+  const resolvedEyebrow = eyebrow ?? copy.eyebrow;
+  const resolvedTitle = title ?? copy.title;
+  const resolvedSubtitle = subtitle ?? copy.subtitle;
+  const resolvedCardTitle = cardTitle ?? copy.cardTitle;
+  const resolvedCardSubtitle = cardSubtitle ?? copy.cardSubtitle;
+  const resolvedButtonLabel = buttonLabel ?? copy.submit;
 
   useEffect(() => {
     Animated.timing(entranceAnim, {
@@ -57,25 +95,19 @@ export default function LoginScreen({
     }).start();
   }, [entranceAnim]);
 
-  const handleLogin = () => {
-    if (email.trim() && password.trim()) {
-      onLogin(email, password);
+  const handleSubmit = async () => {
+    const normalizedToken = token.replace(/\D/g, "");
+
+    if (normalizedToken.length !== 8) {
+      onNotify?.(copy.invalid, "warning");
       return;
     }
 
-    onNotify?.("Please enter both email and password.", "warning");
-  };
-
-  const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      onNotify?.("Type your email first to reset your password.", "warning");
-      return;
-    }
-
+    setIsSubmitting(true);
     try {
-      await onForgotPassword(email.trim());
-    } catch (error: any) {
-      onNotify?.(error.message || "Failed to send reset code.", "error");
+      await onVerify(normalizedToken);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -96,14 +128,12 @@ export default function LoginScreen({
         keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
       >
         <ScrollView
-          ref={scrollRef}
           contentContainerStyle={[
             styles.scrollContent,
             !isWebWide && styles.scrollContentMobile,
             isWebWide && styles.scrollContentWide,
           ]}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           <Animated.View
@@ -128,7 +158,7 @@ export default function LoginScreen({
             >
               <TouchableOpacity onPress={onBackPress} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={16} color="#E0F2FE" />
-                <Text style={styles.backText}>Back</Text>
+                <Text style={styles.backText}>{copy.back}</Text>
               </TouchableOpacity>
 
               <View style={styles.brandRow}>
@@ -146,121 +176,52 @@ export default function LoginScreen({
                 </View>
               </View>
 
-              <Text style={styles.eyebrow}>Welcome back</Text>
+              <Text style={styles.eyebrow}>{resolvedEyebrow}</Text>
               <Text style={[styles.title, isWebWide && styles.titleWide]}>
-                Ready to jump back in?
+                {resolvedTitle}
               </Text>
-              <Text style={styles.subtitle}>
-                Log in to see your latest spending, saved receipts, and synced
-                data.
-              </Text>
-
-              {isWebWide ? (
-                <View style={styles.sideNotes}>
-                  {[
-                    "View your receipts and dashboard at a glance",
-                    "Everything stays synced to your cloud profile",
-                    "Your monthly plans are ready to go",
-                  ].map((item) => (
-                    <View key={item} style={styles.noteRow}>
-                      <View style={styles.noteDot} />
-                      <Text style={styles.noteText}>{item}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
+              <Text style={styles.subtitle}>{resolvedSubtitle}</Text>
             </View>
 
             <BlurView intensity={30} tint="dark" style={styles.card}>
-              <Text style={styles.cardTitle}>Log in</Text>
-              <Text style={styles.cardSubtitle}>
-                Use your account email and password to continue.
-              </Text>
+              <Text style={styles.cardTitle}>{resolvedCardTitle}</Text>
+              <Text style={styles.cardSubtitle}>{resolvedCardSubtitle}</Text>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
+                <Text style={styles.label}>{copy.label}</Text>
                 <View style={styles.inputWrapper}>
                   <Ionicons
-                    name="mail-outline"
+                    name="key-outline"
                     size={18}
                     color="#94A3B8"
                     style={styles.inputIcon}
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="you@gmail.com"
-                    value={email}
-                    onChangeText={setEmail}
-                    onFocus={() => scrollToField(250)}
-                    keyboardType="email-address"
-                    placeholderTextColor="#6B7A90"
-                    returnKeyType="next"
-                    onSubmitEditing={() => passwordRef.current?.focus()}
-                    autoCapitalize="none"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Password</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons
-                    name="lock-closed-outline"
-                    size={18}
-                    color="#94A3B8"
-                    style={styles.inputIcon}
-                  />
-                  <TextInput
-                    ref={passwordRef}
-                    style={styles.input}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChangeText={setPassword}
-                    onFocus={() => scrollToField(360)}
-                    secureTextEntry={!showPassword}
+                    placeholder={copy.placeholder}
+                    value={token}
+                    onChangeText={(value) =>
+                      setToken(value.replace(/\D/g, "").slice(0, 8))
+                    }
+                    keyboardType="number-pad"
                     placeholderTextColor="#6B7A90"
                     returnKeyType="go"
-                    onSubmitEditing={handleLogin}
+                    onSubmitEditing={handleSubmit}
+                    maxLength={8}
                   />
-                  <TouchableOpacity
-                    onPress={() => setShowPassword((value) => !value)}
-                    style={styles.eyeButton}
-                    activeOpacity={0.86}
-                  >
-                    <Ionicons
-                      name={showPassword ? "eye-off-outline" : "eye-outline"}
-                      size={18}
-                      color="#E2E8F0"
-                    />
-                  </TouchableOpacity>
                 </View>
               </View>
-
-              <TouchableOpacity
-                style={styles.forgotPassword}
-                onPress={handleForgotPassword}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.forgotText}>Forgot password?</Text>
-              </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.primaryButton}
-                onPress={handleLogin}
+                onPress={handleSubmit}
                 activeOpacity={0.88}
+                disabled={isSubmitting}
               >
-                <Text style={styles.primaryButtonText}>Log In</Text>
-                <Ionicons name="arrow-forward" size={16} color="#020617" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.switchLink}
-                onPress={onRegisterPress}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.switchText}>
-                  Don&apos;t have an account? Create one
+                <Text style={styles.primaryButtonText}>
+                  {isSubmitting ? copy.submitting : resolvedButtonLabel}
                 </Text>
+                <Ionicons name="arrow-forward" size={16} color="#020617" />
               </TouchableOpacity>
             </BlurView>
           </Animated.View>
@@ -271,13 +232,8 @@ export default function LoginScreen({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    overflow: "hidden",
-  },
-  keyboardShell: {
-    flex: 1,
-  },
+  container: { flex: 1, overflow: "hidden" },
+  keyboardShell: { flex: 1 },
   backgroundOrbOne: {
     position: "absolute",
     top: -120,
@@ -318,32 +274,29 @@ const styles = StyleSheet.create({
     paddingTop: 42,
     paddingBottom: 42,
   },
-  contentWrap: {
-    gap: 20,
-  },
+  contentWrap: { gap: 20 },
   contentWrapWide: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 30,
   },
-  copyColumn: {
-    gap: 14,
-  },
-  copyColumnWide: {
-    flex: 1,
-    maxWidth: 520,
-  },
+  copyColumn: { gap: 14 },
+  copyColumnWide: { flex: 1, maxWidth: 520 },
   backButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     alignSelf: "flex-start",
+    paddingRight: 4,
   },
   backText: {
     color: "#E0F2FE",
     fontSize: 14,
     fontWeight: "700",
+    flexShrink: 0,
+    paddingRight: 2,
+    includeFontPadding: false,
   },
   brandRow: {
     marginTop: 10,
@@ -375,9 +328,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
   },
-  brandCopy: {
-    justifyContent: "center",
-  },
+  brandCopy: { justifyContent: "center" },
   brandText: {
     fontSize: 18,
     fontWeight: "900",
@@ -407,28 +358,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: "#B6C2D3",
   },
-  sideNotes: {
-    marginTop: 10,
-    gap: 12,
-  },
-  noteRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  noteDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 7,
-    backgroundColor: "#67E8F9",
-  },
-  noteText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 22,
-    color: "#CBD5E1",
-  },
   card: {
     borderRadius: 28,
     overflow: "hidden",
@@ -439,20 +368,14 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 480,
   },
-  cardTitle: {
-    fontSize: 26,
-    fontWeight: "900",
-    color: "#F8FAFC",
-  },
+  cardTitle: { fontSize: 26, fontWeight: "900", color: "#F8FAFC" },
   cardSubtitle: {
     marginTop: 8,
     fontSize: 14,
     lineHeight: 22,
     color: "#94A3B8",
   },
-  inputGroup: {
-    marginTop: 18,
-  },
+  inputGroup: { marginTop: 18 },
   label: {
     marginBottom: 8,
     fontSize: 11,
@@ -470,38 +393,18 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 23, 42, 0.92)",
     paddingHorizontal: 14,
   },
-  inputIcon: {
-    marginRight: 10,
-  },
+  inputIcon: { marginRight: 10 },
   input: {
     flex: 1,
     paddingVertical: 14,
     color: "#F8FAFC",
-    fontSize: 15,
-  },
-  eyeButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(148, 163, 184, 0.08)",
-    ...Platform.select({
-      web: { cursor: "pointer" } as object,
-    }),
-  },
-  forgotPassword: {
-    alignSelf: "flex-end",
-    marginTop: 12,
-  },
-  forgotText: {
-    color: "#7DD3FC",
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: 6,
   },
   primaryButton: {
     minHeight: 54,
-    marginTop: 18,
+    marginTop: 20,
     paddingHorizontal: 20,
     borderRadius: 999,
     backgroundColor: "#7DD3FC",
@@ -514,13 +417,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
     color: "#020617",
-  },
-  switchLink: {
-    marginTop: 18,
-    alignItems: "center",
-  },
-  switchText: {
-    color: "#B6C2D3",
-    fontSize: 14,
   },
 });

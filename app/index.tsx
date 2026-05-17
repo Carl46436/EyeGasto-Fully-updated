@@ -1,24 +1,51 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import * as Linking from "expo-linking";
-import { SafeAreaView, StyleSheet } from "react-native";
+import Head from "expo-router/head";
+import { Animated, AppState, Easing, Platform, SafeAreaView, StyleSheet } from "react-native";
 
-import WelcomeScreen from "./components/WelcomeScreen";
-import LoginScreen from "./components/LoginScreen";
-import RegisterScreen from "./components/RegisterScreen";
-import EmailConfirmedScreen from "./components/EmailConfirmedScreen";
-import ResetPasswordScreen from "./components/ResetPasswordScreen";
-import VerifyEmailOtpScreen from "./components/VerifyEmailOtpScreen";
-import DashboardScreen from "./components/DashboardScreen";
-import LoadingScreen from "./components/LoadingScreen";
-import ErrorAlert from "./components/ErrorAlert";
-import OnboardingIntroScreen from "./components/OnboardingIntroScreen";
+import WelcomeScreen from "@/src/components/WelcomeScreen";
+import LoginScreen from "@/src/components/LoginScreen";
+import LoadingScreen from "@/src/components/LoadingScreen";
+import ErrorAlert from "@/src/components/ErrorAlert";
+import OnboardingIntroScreen from "@/src/components/OnboardingIntroScreen";
 import authService from "@/src/services/authService";
 import { parseAuthRedirectUrl } from "@/src/services/authRedirect";
 import expenseService from "@/src/services/expenseService";
+import networkService, { NetworkStatus } from "@/src/services/networkService";
 import storageService, { StorageKeys } from "@/src/services/storageService";
 import appLogger from "@/src/services/appLogger";
 import { supabase } from "@/src/services/supabaseClient";
-import { Expense, RecurringExpenseTemplate, User } from "@/src/types";
+import { Expense, RecurringExpenseTemplate, SyncStatus, User } from "@/src/types";
+import { CurrencyCode } from "@/src/services/currency";
+import { AppLanguage, normalizeAppLanguage, resolveUiLanguage } from "@/src/i18n/appLanguage";
+
+const loadRegisterScreen = () => import("@/src/components/RegisterScreen");
+const loadEmailConfirmedScreen = () => import("@/src/components/EmailConfirmedScreen");
+const loadResetPasswordScreen = () => import("@/src/components/ResetPasswordScreen");
+const loadVerifyEmailOtpScreen = () => import("@/src/components/VerifyEmailOtpScreen");
+const loadDashboardScreen = () => import("@/src/components/DashboardScreen");
+const loadPostRegistrationSetupScreen = () =>
+  import("@/src/components/PostRegistrationSetupScreen");
+
+const RegisterScreen = lazy(loadRegisterScreen);
+const EmailConfirmedScreen = lazy(loadEmailConfirmedScreen);
+const ResetPasswordScreen = lazy(loadResetPasswordScreen);
+const VerifyEmailOtpScreen = lazy(loadVerifyEmailOtpScreen);
+const DashboardScreen = lazy(loadDashboardScreen);
+const PostRegistrationSetupScreen = lazy(loadPostRegistrationSetupScreen);
+const WEB_TITLE = "EyeGasto | Track expenses, receipts, budgets, and insights";
+const WEB_DESCRIPTION =
+  "Track expenses, save receipt proof, manage monthly budgets, and review spending insights with EyeGasto.";
+
+type ScreenLoader = () => Promise<{ default: React.ComponentType<any> }>;
+
+async function preloadScreen(loader: ScreenLoader) {
+  try {
+    await loader();
+  } catch {
+    // Ignore preload failures and let Suspense retry on demand.
+  }
+}
 
 type Screen =
   | "onboardingIntro"
@@ -29,6 +56,7 @@ type Screen =
   | "verifyRecoveryOtp"
   | "emailConfirmed"
   | "resetPassword"
+  | "postRegistrationSetup"
   | "dashboard";
 type AlertState = {
   message: string;
@@ -36,6 +64,22 @@ type AlertState = {
 };
 
 type UserUpdatePayload = Partial<User>;
+type DashboardPreferences = {
+  themeMode?: "dark" | "light";
+  monthlyBudget?: number;
+  activeTab?: "overview" | "budget" | "stats" | "gallery" | "profile";
+  selectedCategory?: string | "All";
+  dateRange?:
+    | "today"
+    | "thisWeek"
+    | "thisMonth"
+    | "lastMonth"
+    | "last30Days"
+    | "allTime";
+  preferredCurrency?: CurrencyCode;
+  preferredLanguage?: AppLanguage;
+  onboardingSeenForUserId?: string;
+};
 
 export default function Index() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("onboardingIntro");
@@ -48,6 +92,78 @@ export default function Index() {
   const [pendingRecoveryEmail, setPendingRecoveryEmail] = useState("");
   const [shouldShowGuideForThisSession, setShouldShowGuideForThisSession] =
     useState(false);
+  const [appLanguage, setAppLanguage] = useState<AppLanguage>("English");
+  const [networkStatus, setNetworkStatus] = useState<NetworkStatus | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const [setupDefaults, setSetupDefaults] = useState<{
+    monthlyBudget: number;
+    preferredCurrency: CurrencyCode;
+    preferredLanguage: AppLanguage;
+  }>({
+    monthlyBudget: 10000,
+    preferredCurrency: "PHP",
+    preferredLanguage: "English",
+  });
+  const uiLanguage = resolveUiLanguage(appLanguage);
+  const flowCopy =
+    uiLanguage === "Filipino"
+      ? {
+          registrationSuccess:
+            "Matagumpay ang registration! Ilagay ang 8-digit code na ipinadala sa email mo.",
+          registrationFailed: "Hindi natuloy ang registration",
+          registrationError: "May error sa registration",
+          emailVerified: "Matagumpay na na-verify ang email.",
+          verificationFailed: "Hindi natuloy ang verification",
+          resetCodeSent:
+            "Naipadala ang reset code. Ilagay ang 8-digit code mula sa email mo.",
+          resetCodeFailed: "Hindi maipadala ang reset code.",
+          recoveryVerified:
+            "Na-verify ang code. Itakda na ang bago mong password.",
+          passwordUpdated:
+            "Na-update ang password. Mag-log in gamit ang bago mong password.",
+          loading: "Inihahanda ang expense space mo...",
+          recoveryEyebrow: "Password recovery",
+          recoveryTitle: "Ilagay ang 8-digit reset code mo.",
+          recoverySubtitlePrefix:
+            "Nagpadala kami ng reset code sa",
+          recoverySubtitleSuffix:
+            "Ilagay ito rito para magpatuloy sa pag-reset ng password mo.",
+          recoveryCardTitle: "I-verify ang reset code",
+          recoveryCardSubtitle:
+            "Tingnan ang inbox mo para sa 8-digit reset code mula sa EyeGasto.",
+          recoveryContinue: "Magpatuloy",
+        }
+      : {
+          registrationSuccess:
+            "Registration successful! Enter the 8-digit code sent to your email.",
+          registrationFailed: "Registration failed",
+          registrationError: "Registration error",
+          emailVerified: "Email verified successfully.",
+          verificationFailed: "Verification failed",
+          resetCodeSent:
+            "Reset code sent. Enter the 8-digit code from your email.",
+          resetCodeFailed: "Failed to send reset code.",
+          recoveryVerified: "Code verified. Set your new password.",
+          passwordUpdated:
+            "Password updated. Please log in with your new password.",
+          loading: "Preparing your expense space...",
+          recoveryEyebrow: "Password recovery",
+          recoveryTitle: "Enter your 8-digit reset code.",
+          recoverySubtitlePrefix: "We sent a reset code to",
+          recoverySubtitleSuffix:
+            "Enter it here to continue to your password reset.",
+          recoveryCardTitle: "Verify reset code",
+          recoveryCardSubtitle:
+            "Check your inbox for the 8-digit reset code from EyeGasto.",
+          recoveryContinue: "Continue",
+        };
+  const screenAnim = useRef(new Animated.Value(1)).current;
+  const syncInFlightRef = useRef(false);
+  const userRef = useRef<User | null>(null);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   const showAlert = useCallback((
     message: string,
@@ -57,13 +173,9 @@ export default function Index() {
   }, []);
 
   const resetDashboardViewPreference = useCallback(async () => {
-    const preferences = await storageService.getItem<{
-      themeMode?: "dark" | "light";
-      monthlyBudget?: number;
-      activeTab?: "overview" | "budget" | "stats" | "gallery" | "profile";
-      selectedCategory?: string | "All";
-      dateRange?: "today" | "thisWeek" | "thisMonth" | "allTime";
-    }>(StorageKeys.DASHBOARD_PREFERENCES);
+    const preferences = await storageService.getItem<DashboardPreferences>(
+      StorageKeys.DASHBOARD_PREFERENCES,
+    );
 
     if (!preferences) {
       return;
@@ -72,27 +184,95 @@ export default function Index() {
     await storageService.setItem(StorageKeys.DASHBOARD_PREFERENCES, {
       ...preferences,
       activeTab: "overview",
+      dateRange:
+        preferences.dateRange === "lastMonth" ||
+        preferences.dateRange === "last30Days" ||
+        preferences.dateRange === "allTime"
+          ? preferences.dateRange
+          : "thisMonth",
     });
+  }, []);
+
+  const getDashboardPreferences = useCallback(async () => {
+    return (
+      (await storageService.getItem<DashboardPreferences>(
+        StorageKeys.DASHBOARD_PREFERENCES,
+      )) ?? null
+    );
   }, []);
 
   const loadExpensesForUser = useCallback(async (baseUser: User) => {
     setIsExpensesLoading(true);
     try {
-      const syncResult = await expenseService.syncRecurringExpenses(baseUser);
-      const resolvedUser = syncResult.user ?? baseUser;
+      const cachedExpenses = await expenseService.getLocalExpenses(baseUser);
+      setExpenses(cachedExpenses);
+
+      const currentNetworkStatus = await networkService
+        .getStatus()
+        .catch(() => null);
+      if (currentNetworkStatus) {
+        setNetworkStatus(currentNetworkStatus);
+      }
+      if (currentNetworkStatus?.isOnline === false) {
+        setSyncStatus("offline");
+        return;
+      }
+
+      setSyncStatus("syncing");
+
+      let resolvedUser = baseUser;
+      let recurringSyncedCount = 0;
+      let pendingSyncedCount = 0;
+
+      try {
+        const syncResult = await expenseService.syncRecurringExpenses(baseUser);
+        resolvedUser = syncResult.user ?? baseUser;
+        recurringSyncedCount = syncResult.syncedCount;
+      } catch (error: any) {
+        await appLogger.log("recurring_expense_sync_skipped", "warn", {
+          error: error?.message,
+        });
+      }
       setUser(resolvedUser);
 
-      const userExpenses = await expenseService.getExpenses();
-      setExpenses(userExpenses);
+      try {
+        const pendingExpenseSync =
+          await expenseService.flushPendingExpenseOperations(resolvedUser);
+        pendingSyncedCount = pendingExpenseSync.syncedCount;
+      } catch (error: any) {
+        await appLogger.log("pending_expense_sync_skipped", "warn", {
+          error: error?.message,
+        });
+      }
 
-      if (syncResult.syncedCount > 0) {
+      const userExpenses = await expenseService.getExpenses(resolvedUser);
+      setExpenses(userExpenses);
+      setSyncStatus("synced");
+
+      if (recurringSyncedCount > 0) {
         showAlert(
-          `${syncResult.syncedCount} recurring expense${
-            syncResult.syncedCount === 1 ? "" : "s"
+          `${recurringSyncedCount} recurring expense${
+            recurringSyncedCount === 1 ? "" : "s"
           } added automatically.`,
           "success",
         );
       }
+
+      if (pendingSyncedCount > 0) {
+        showAlert(
+          `${pendingSyncedCount} pending expense change${
+            pendingSyncedCount === 1 ? "" : "s"
+          } synced.`,
+          "success",
+        );
+      }
+    } catch (error: any) {
+      setSyncStatus("error");
+      await appLogger.log("expense_load_failed_using_cache", "warn", {
+        error: error?.message,
+      });
+      const cachedExpenses = await expenseService.getLocalExpenses(baseUser);
+      setExpenses(cachedExpenses);
     } finally {
       setIsExpensesLoading(false);
     }
@@ -143,6 +323,225 @@ export default function Index() {
     });
   }, []);
 
+  const startBackgroundSync = useCallback(
+    (currentUser: User) => {
+      if (syncInFlightRef.current) {
+        return;
+      }
+
+      syncInFlightRef.current = true;
+      void (async () => {
+        try {
+          const currentNetworkStatus = await networkService
+            .getStatus()
+            .catch(() => null);
+          if (currentNetworkStatus) {
+            setNetworkStatus(currentNetworkStatus);
+          }
+          if (currentNetworkStatus?.isOnline === false) {
+            setSyncStatus("offline");
+            return;
+          }
+
+          setSyncStatus("syncing");
+          await loadExpensesForUser(currentUser);
+          await flushPendingUserUpdates();
+          setSyncStatus("synced");
+        } catch (error: any) {
+          setSyncStatus("error");
+          await appLogger.log("background_sync_failed", "warn", {
+            error: error?.message,
+          });
+        } finally {
+          syncInFlightRef.current = false;
+        }
+      })();
+    },
+    [flushPendingUserUpdates, loadExpensesForUser],
+  );
+
+  useEffect(() => {
+    let previousOnline: boolean | null = null;
+
+    networkService.getStatus().then((status) => {
+      previousOnline = status.isOnline;
+      setNetworkStatus(status);
+      if (!status.isOnline) {
+        setSyncStatus("offline");
+      }
+    }).catch(() => undefined);
+
+    const unsubscribe = networkService.subscribe((status) => {
+      const wasOffline = previousOnline === false;
+      previousOnline = status.isOnline;
+      setNetworkStatus(status);
+
+      if (!status.isOnline) {
+        setSyncStatus("offline");
+        return;
+      }
+
+      setSyncStatus((current) => (current === "offline" ? "idle" : current));
+      if (wasOffline && userRef.current) {
+        startBackgroundSync(userRef.current);
+      }
+    });
+
+    const appStateSubscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active" || !userRef.current) {
+        return;
+      }
+
+      networkService.getStatus().then((status) => {
+        setNetworkStatus(status);
+        if (status.isOnline) {
+          startBackgroundSync(userRef.current as User);
+        } else {
+          setSyncStatus("offline");
+        }
+      }).catch(() => undefined);
+    });
+
+    return () => {
+      unsubscribe();
+      appStateSubscription.remove();
+    };
+  }, [startBackgroundSync]);
+
+  const showDashboardFromCache = useCallback(
+    async (
+      currentUser: User,
+      options?: {
+        forceGuide?: boolean;
+      },
+    ) => {
+      if (Platform.OS === "web") {
+        await preloadScreen(loadDashboardScreen);
+      }
+      setUser(currentUser);
+      setShouldShowGuideForThisSession(options?.forceGuide ?? false);
+      setCurrentScreen("dashboard");
+      setExpenses(await expenseService.getLocalExpenses(currentUser));
+      startBackgroundSync(currentUser);
+    },
+    [startBackgroundSync],
+  );
+
+  const routeAuthenticatedUser = useCallback(
+    async (
+      currentUser: User,
+      options?: {
+        forceGuide?: boolean;
+      },
+    ) => {
+      const preferences = await getDashboardPreferences();
+      const hasCompletedSetup =
+        preferences?.onboardingSeenForUserId === currentUser.id;
+
+      setUser(currentUser);
+
+      if (!hasCompletedSetup) {
+        if (Platform.OS === "web") {
+          await preloadScreen(loadPostRegistrationSetupScreen);
+        }
+        setAppLanguage(
+          normalizeAppLanguage(preferences?.preferredLanguage),
+        );
+        setSetupDefaults({
+          monthlyBudget: preferences?.monthlyBudget ?? 10000,
+          preferredCurrency: preferences?.preferredCurrency ?? "PHP",
+          preferredLanguage: normalizeAppLanguage(
+            preferences?.preferredLanguage,
+          ),
+        });
+        setCurrentScreen("postRegistrationSetup");
+        return;
+      }
+
+      setAppLanguage(
+        normalizeAppLanguage(preferences?.preferredLanguage),
+      );
+      await showDashboardFromCache(currentUser, options);
+    },
+    [getDashboardPreferences, showDashboardFromCache],
+  );
+
+  const finalizeFirstTimeSetup = useCallback(
+    async (
+      currentUser: User,
+      updates?: {
+        username?: string;
+        monthlyBudget?: number;
+        preferredCurrency?: CurrencyCode;
+        preferredLanguage?: AppLanguage;
+      },
+    ) => {
+      let resolvedUser = currentUser;
+
+      if (
+        updates?.username &&
+        updates.username.trim().toLowerCase() !==
+          (currentUser.username ?? "").toLowerCase()
+      ) {
+        const updateResult = await authService.updateUser({
+          username: updates.username.trim().toLowerCase(),
+        });
+
+        if (!updateResult.success || !updateResult.user) {
+          const errorMessage = updateResult.error || "Failed to update username";
+          const shouldQueueUsernameUpdate =
+            errorMessage === "Auth session missing!" ||
+            errorMessage.toLowerCase().includes("network") ||
+            errorMessage.toLowerCase().includes("timed out") ||
+            errorMessage.toLowerCase().includes("failed to fetch");
+
+          if (!shouldQueueUsernameUpdate) {
+            throw new Error(errorMessage);
+          }
+
+          resolvedUser = {
+            ...currentUser,
+            username: updates.username.trim().toLowerCase(),
+          };
+          await enqueuePendingUserUpdate({
+            username: resolvedUser.username,
+          });
+          await appLogger.log("offline_setup_username_update_queued", "warn", {
+            username: resolvedUser.username,
+          });
+          setUser(resolvedUser);
+        } else {
+          resolvedUser = updateResult.user;
+          setUser(resolvedUser);
+        }
+      }
+
+      const preferences = await getDashboardPreferences();
+      await storageService.setItem(StorageKeys.DASHBOARD_PREFERENCES, {
+        ...preferences,
+        monthlyBudget:
+          updates?.monthlyBudget ?? preferences?.monthlyBudget ?? 10000,
+        preferredCurrency:
+          updates?.preferredCurrency ?? preferences?.preferredCurrency ?? "PHP",
+        preferredLanguage:
+          normalizeAppLanguage(
+            updates?.preferredLanguage ?? preferences?.preferredLanguage,
+          ),
+        onboardingSeenForUserId: resolvedUser.id,
+        activeTab: "overview",
+        dateRange: preferences?.dateRange ?? "thisMonth",
+      } satisfies DashboardPreferences);
+
+      setAppLanguage(
+        normalizeAppLanguage(
+          updates?.preferredLanguage ?? preferences?.preferredLanguage,
+        ),
+      );
+      await showDashboardFromCache(resolvedUser, { forceGuide: true });
+    },
+    [enqueuePendingUserUpdate, getDashboardPreferences, showDashboardFromCache],
+  );
+
   const handleAuthRedirect = useCallback(async (url: string) => {
     const { accessToken, refreshToken, tokenHash, code, type } =
       parseAuthRedirectUrl(url);
@@ -186,6 +585,9 @@ export default function Index() {
       }
 
       if (resolvedType === "recovery") {
+        if (Platform.OS === "web") {
+          await preloadScreen(loadResetPasswordScreen);
+        }
         setCurrentScreen("resetPassword");
         showAlert("Recovery link verified. Enter a new password.", "success");
         return "recovery" as const;
@@ -195,6 +597,9 @@ export default function Index() {
         await supabase.auth.signOut();
         setUser(null);
         setExpenses([]);
+        if (Platform.OS === "web") {
+          await preloadScreen(loadEmailConfirmedScreen);
+        }
         setCurrentScreen("emailConfirmed");
         return "confirmed" as const;
       }
@@ -208,6 +613,16 @@ export default function Index() {
   }, [showAlert]);
 
   // Check auth status on mount
+  useEffect(() => {
+    screenAnim.setValue(0);
+    Animated.timing(screenAnim, {
+      toValue: 1,
+      duration: 280,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: Platform.OS !== "web",
+    }).start();
+  }, [currentScreen, screenAnim]);
+
   useEffect(() => {
     const initializeApp = async () => {
       try {
@@ -226,11 +641,7 @@ export default function Index() {
           await authService.checkAuthStatus();
 
         if (isAuthenticated && currentUser) {
-          setShouldShowGuideForThisSession(false);
-          setCurrentScreen("dashboard");
-          setIsLoading(false);
-          await loadExpensesForUser(currentUser);
-          await flushPendingUserUpdates();
+          await routeAuthenticatedUser(currentUser);
         } else {
           const hasSeenOnboardingIntro = await storageService.getItem<boolean>(
             StorageKeys.ONBOARDING_INTRO_SEEN,
@@ -250,7 +661,22 @@ export default function Index() {
     };
 
     initializeApp();
-  }, [flushPendingUserUpdates, handleAuthRedirect, loadExpensesForUser, showAlert]);
+  }, [handleAuthRedirect, routeAuthenticatedUser, showAlert]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || isLoading) {
+      return;
+    }
+
+    const preloadTimeout = setTimeout(() => {
+      void preloadScreen(loadRegisterScreen);
+      void preloadScreen(loadVerifyEmailOtpScreen);
+      void preloadScreen(loadResetPasswordScreen);
+      void preloadScreen(loadEmailConfirmedScreen);
+    }, 200);
+
+    return () => clearTimeout(preloadTimeout);
+  }, [isLoading]);
 
   useEffect(() => {
     const subscription = Linking.addEventListener("url", ({ url }) => {
@@ -262,23 +688,18 @@ export default function Index() {
     };
   }, [handleAuthRedirect]);
 
-  const handleLogin = async (email: string, password: string) => {
+  const handleLogin = async (loginIdentifier: string, password: string) => {
     try {
       setIsLoading(true);
-      const result = await authService.login(email, password);
+      const result = await authService.login(loginIdentifier, password);
 
       if (!result.success) {
-        showAlert(result.error || "Gmail needs to be registered first");
+        showAlert(result.error || "That email or username needs to be registered first");
         return;
       }
 
-      setShouldShowGuideForThisSession(true);
-      setUser(result.user || null);
-      setCurrentScreen("dashboard");
-      setIsLoading(false);
       if (result.user) {
-        await loadExpensesForUser(result.user);
-        await flushPendingUserUpdates();
+        await routeAuthenticatedUser(result.user, { forceGuide: true });
       }
     } catch (err: any) {
       showAlert(err.message || "Login error");
@@ -292,24 +713,28 @@ export default function Index() {
     email: string,
     password: string,
     name: string,
+    username: string,
   ) => {
     try {
       setIsLoading(true);
-      const result = await authService.register(email, password, name);
+      const result = await authService.register(email, password, name, username);
 
       if (!result.success) {
-        showAlert(result.error || "Registration failed");
+        showAlert(result.error || flowCopy.registrationFailed);
         return;
       }
 
       showAlert(
-        "Registration successful! Enter the 8-digit code sent to your email.",
+        flowCopy.registrationSuccess,
         "success",
       );
       setPendingVerificationEmail(email);
+      if (Platform.OS === "web") {
+        await preloadScreen(loadVerifyEmailOtpScreen);
+      }
       setCurrentScreen("verifyEmailOtp");
     } catch (err: any) {
-      showAlert(err.message || "Registration error");
+      showAlert(err.message || flowCopy.registrationError);
     } finally {
       setIsLoading(false);
     }
@@ -324,16 +749,12 @@ export default function Index() {
       );
 
       if (!result.success || !result.user) {
-        throw new Error(result.error || "Verification failed");
+        throw new Error(result.error || flowCopy.verificationFailed);
       }
 
       setPendingVerificationEmail("");
-      setShouldShowGuideForThisSession(true);
-      setUser(result.user);
-      setCurrentScreen("dashboard");
-      showAlert("Email verified successfully.", "success");
-      await loadExpensesForUser(result.user);
-      await flushPendingUserUpdates();
+      showAlert(flowCopy.emailVerified, "success");
+      await routeAuthenticatedUser(result.user, { forceGuide: true });
     } finally {
       setIsLoading(false);
     }
@@ -343,12 +764,15 @@ export default function Index() {
     const result = await authService.sendRecoveryOtp(email);
 
     if (!result.success) {
-      throw new Error(result.error || "Failed to send reset code.");
+      throw new Error(result.error || flowCopy.resetCodeFailed);
     }
 
-    setPendingRecoveryEmail(email);
-    setCurrentScreen("verifyRecoveryOtp");
-    showAlert("Reset code sent. Enter the 8-digit code from your email.", "success");
+      setPendingRecoveryEmail(email);
+      if (Platform.OS === "web") {
+        await preloadScreen(loadVerifyEmailOtpScreen);
+      }
+      setCurrentScreen("verifyRecoveryOtp");
+      showAlert(flowCopy.resetCodeSent, "success");
   };
 
   const handleVerifyRecoveryOtp = async (token: string) => {
@@ -360,11 +784,14 @@ export default function Index() {
       );
 
       if (!result.success) {
-        throw new Error(result.error || "Verification failed");
+        throw new Error(result.error || flowCopy.verificationFailed);
       }
 
+      if (Platform.OS === "web") {
+        await preloadScreen(loadResetPasswordScreen);
+      }
       setCurrentScreen("resetPassword");
-      showAlert("Code verified. Set your new password.", "success");
+      showAlert(flowCopy.recoveryVerified, "success");
     } finally {
       setIsLoading(false);
     }
@@ -433,6 +860,11 @@ export default function Index() {
         );
       }
 
+      const savedOffline = result.expense?.isPending === true;
+      if (savedOffline) {
+        setSyncStatus("offline");
+      }
+
       if (options?.recurringMonthly && user && result.expense) {
         const expenseDate = new Date(result.expense.date);
         const recurringTemplate: RecurringExpenseTemplate = {
@@ -447,12 +879,13 @@ export default function Index() {
           lastGeneratedAt: expenseDate.toISOString(),
           isActive: true,
         };
+        const nextRecurringExpenses: RecurringExpenseTemplate[] = [
+          ...(user.recurringExpenses ?? []),
+          recurringTemplate,
+        ];
 
         const updateResult = await authService.updateUser({
-          recurringExpenses: [
-            ...(user.recurringExpenses ?? []),
-            recurringTemplate,
-          ],
+          recurringExpenses: nextRecurringExpenses,
         });
 
         if (updateResult.success && updateResult.user) {
@@ -462,13 +895,25 @@ export default function Index() {
             "success",
           );
         } else {
+          await enqueuePendingUserUpdate({
+            recurringExpenses: nextRecurringExpenses,
+          });
+          setUser({
+            ...user,
+            recurringExpenses: nextRecurringExpenses,
+          });
           showAlert(
-            "Expense added, but the recurring plan could not be saved.",
+            "Expense added. The recurring plan was saved locally and will sync when online.",
             "warning",
           );
         }
       } else {
-        showAlert("Expense added successfully.", "success");
+        showAlert(
+          savedOffline
+            ? "Expense saved offline. It will sync when you are online."
+            : "Expense added successfully.",
+          savedOffline ? "warning" : "success",
+        );
       }
       return true;
     } catch (err: any) {
@@ -495,7 +940,7 @@ export default function Index() {
       setPendingRecoveryEmail("");
       await resetDashboardViewPreference();
       setCurrentScreen("login");
-      showAlert("Password updated. Please log in with your new password.", "success");
+      showAlert(flowCopy.passwordUpdated, "success");
     } finally {
       setIsLoading(false);
     }
@@ -631,11 +1076,38 @@ export default function Index() {
   };
 
   if (isLoading) {
-    return <LoadingScreen message="Initializing..." />;
+    return (
+      <>
+        <Head>
+          <title>{WEB_TITLE}</title>
+          <meta name="description" content={WEB_DESCRIPTION} />
+        </Head>
+        <LoadingScreen language={appLanguage} message={flowCopy.loading} />
+      </>
+    );
   }
+
+  const screenAnimatedStyle = {
+    opacity: screenAnim,
+    transform: [
+      {
+        translateY: screenAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [16, 0],
+        }),
+      },
+    ],
+  };
+  const screenFallback = (
+    <LoadingScreen language={appLanguage} message={flowCopy.loading} />
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
+      <Head>
+        <title>{WEB_TITLE}</title>
+        <meta name="description" content={WEB_DESCRIPTION} />
+      </Head>
       {alertState && (
         <ErrorAlert
           message={alertState.message}
@@ -645,8 +1117,11 @@ export default function Index() {
         />
       )}
 
+      <Suspense fallback={screenFallback}>
+      <Animated.View style={[styles.screenWrap, screenAnimatedStyle]}>
       {currentScreen === "onboardingIntro" && (
         <OnboardingIntroScreen
+          language={appLanguage}
           onGetStarted={async () => {
             await storageService.setItem(StorageKeys.ONBOARDING_INTRO_SEEN, true);
             setCurrentScreen("welcome");
@@ -656,6 +1131,7 @@ export default function Index() {
 
       {currentScreen === "welcome" && (
         <WelcomeScreen
+          language={appLanguage}
           onLoginPress={() => setCurrentScreen("login")}
           onRegisterPress={() => setCurrentScreen("register")}
         />
@@ -663,6 +1139,7 @@ export default function Index() {
 
       {currentScreen === "login" && (
         <LoginScreen
+          language={appLanguage}
           onLogin={handleLogin}
           onBackPress={() => setCurrentScreen("welcome")}
           onRegisterPress={() => setCurrentScreen("register")}
@@ -673,6 +1150,7 @@ export default function Index() {
 
       {currentScreen === "register" && (
         <RegisterScreen
+          language={appLanguage}
           onRegister={handleRegister}
           onBackPress={() => setCurrentScreen("welcome")}
           onLoginPress={() => setCurrentScreen("login")}
@@ -681,6 +1159,7 @@ export default function Index() {
 
       {currentScreen === "verifyEmailOtp" && (
         <VerifyEmailOtpScreen
+          language={appLanguage}
           email={pendingVerificationEmail}
           onBackPress={() => setCurrentScreen("register")}
           onVerify={handleVerifyEmailOtp}
@@ -690,21 +1169,23 @@ export default function Index() {
 
       {currentScreen === "verifyRecoveryOtp" && (
         <VerifyEmailOtpScreen
+          language={appLanguage}
           email={pendingRecoveryEmail}
           onBackPress={() => setCurrentScreen("login")}
           onVerify={handleVerifyRecoveryOtp}
-          eyebrow="Password recovery"
-          title="Enter your 8-digit reset code."
-          subtitle={`We sent a reset code to ${pendingRecoveryEmail}. Enter it here to continue to your password reset.`}
-          cardTitle="Verify reset code"
-          cardSubtitle="Check your inbox for the 8-digit reset code from EyeGasto."
-          buttonLabel="Continue"
+          eyebrow={flowCopy.recoveryEyebrow}
+          title={flowCopy.recoveryTitle}
+          subtitle={`${flowCopy.recoverySubtitlePrefix} ${pendingRecoveryEmail}. ${flowCopy.recoverySubtitleSuffix}`}
+          cardTitle={flowCopy.recoveryCardTitle}
+          cardSubtitle={flowCopy.recoveryCardSubtitle}
+          buttonLabel={flowCopy.recoveryContinue}
           onNotify={showAlert}
         />
       )}
 
       {currentScreen === "resetPassword" && (
         <ResetPasswordScreen
+          language={appLanguage}
           onBackPress={() => setCurrentScreen("login")}
           onSubmit={handleRecoveredPasswordUpdate}
           onNotify={showAlert}
@@ -713,6 +1194,7 @@ export default function Index() {
 
       {currentScreen === "emailConfirmed" && (
         <EmailConfirmedScreen
+          language={appLanguage}
           onBackPress={() => setCurrentScreen("welcome")}
           onLoginPress={() => setCurrentScreen("login")}
         />
@@ -724,6 +1206,10 @@ export default function Index() {
           expenses={expenses}
           isExpensesLoading={isExpensesLoading}
           shouldShowGuideForThisSession={shouldShowGuideForThisSession}
+          language={appLanguage}
+          networkStatus={networkStatus}
+          syncStatus={syncStatus}
+          onLanguageChange={setAppLanguage}
           onAddExpense={handleAddExpense}
           onDeleteExpense={handleDeleteExpense}
           onUpdateExpense={handleUpdateExpense}
@@ -741,20 +1227,31 @@ export default function Index() {
               }
               return true;
             } catch (err: any) {
-              if (err?.message === "Auth session missing!") {
+              const message = String(err?.message ?? "");
+              const shouldQueueOfflineUpdate =
+                message === "Auth session missing!" ||
+                message.toLowerCase().includes("network") ||
+                message.toLowerCase().includes("timed out") ||
+                message.toLowerCase().includes("failed to fetch");
+
+              if (shouldQueueOfflineUpdate) {
                 await enqueuePendingUserUpdate(updates);
-                await supabase.auth.signOut();
-                setShouldShowGuideForThisSession(false);
-                setUser(null);
-                setExpenses([]);
-                setCurrentScreen("login");
-                showAlert(
-                  "Your session expired. We saved your change and will retry after login.",
+                setUser((current) =>
+                  current
+                    ? {
+                        ...current,
+                        ...updates,
+                      }
+                    : current,
                 );
-                await appLogger.log("session_expired_redirect_login", "warn", {
+                showAlert(
+                  "Saved locally. This profile change will sync when you are online.",
+                  "warning",
+                );
+                await appLogger.log("offline_profile_update_queued", "warn", {
                   updateKeys: Object.keys(updates),
                 });
-                return false;
+                return true;
               }
 
               showAlert(err?.message || "Failed to update profile");
@@ -771,6 +1268,39 @@ export default function Index() {
           onChangePassword={handleChangePassword}
         />
       )}
+
+      {currentScreen === "postRegistrationSetup" && user && (
+        <PostRegistrationSetupScreen
+          language={appLanguage}
+          user={user}
+          initialMonthlyBudget={setupDefaults.monthlyBudget}
+          initialCurrency={setupDefaults.preferredCurrency}
+          initialLanguage={setupDefaults.preferredLanguage}
+          isSaving={isLoading}
+          onContinue={async (values) => {
+            try {
+              setIsLoading(true);
+              await finalizeFirstTimeSetup(user, values);
+            } catch (err: any) {
+              showAlert(err.message || "Failed to save first-time setup");
+            } finally {
+              setIsLoading(false);
+            }
+          }}
+          onSkip={async () => {
+            try {
+              setIsLoading(true);
+              await finalizeFirstTimeSetup(user);
+            } catch (err: any) {
+              showAlert(err.message || "Failed to finish setup");
+            } finally {
+              setIsLoading(false);
+            }
+          }}
+        />
+      )}
+      </Animated.View>
+      </Suspense>
     </SafeAreaView>
   );
 }
@@ -779,5 +1309,8 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: "#020617",
+  },
+  screenWrap: {
+    flex: 1,
   },
 });

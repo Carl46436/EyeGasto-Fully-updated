@@ -20,6 +20,7 @@ export const StorageKeys = {
   DASHBOARD_PREFERENCES: "dashboardPreferences",
   APP_LOGS: "appLogs",
   PENDING_USER_UPDATES: "pendingUserUpdates",
+  PENDING_EXPENSE_OPERATIONS_PREFIX: "pendingExpenseOperations",
 } as const;
 
 class StorageService {

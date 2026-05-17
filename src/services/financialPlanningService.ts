@@ -1,4 +1,5 @@
 import { CategoryBudget, DebtItem } from "../types";
+import { withNetworkTimeout } from "./networkTimeout";
 import { supabase } from "./supabaseClient";
 
 type CategoryBudgetRow = {
@@ -21,11 +22,13 @@ type DebtItemRow = {
 
 class FinancialPlanningService {
   async getCategoryBudgets(userId: string): Promise<CategoryBudget[]> {
-    const { data, error } = await supabase
-      .from("category_budgets")
-      .select("id, category, limit_amount, note")
-      .eq("user_id", userId)
-      .order("category", { ascending: true });
+    const { data, error } = await withNetworkTimeout(
+      supabase
+        .from("category_budgets")
+        .select("id, category, limit_amount, note")
+        .eq("user_id", userId)
+        .order("category", { ascending: true }),
+    ).catch(() => ({ data: null, error: new Error("Network timed out") }));
 
     if (error || !data) {
       return [];
@@ -43,10 +46,12 @@ class FinancialPlanningService {
     userId: string,
     budgets: CategoryBudget[],
   ): Promise<boolean> {
-    const { error: deleteError } = await supabase
-      .from("category_budgets")
-      .delete()
-      .eq("user_id", userId);
+    const { error: deleteError } = await withNetworkTimeout(
+      supabase
+        .from("category_budgets")
+        .delete()
+        .eq("user_id", userId),
+    ).catch(() => ({ error: new Error("Network timed out") }));
 
     if (deleteError) {
       return false;
@@ -64,19 +69,23 @@ class FinancialPlanningService {
       note: budget.note ?? null,
     }));
 
-    const { error: insertError } = await supabase
-      .from("category_budgets")
-      .insert(payload);
+    const { error: insertError } = await withNetworkTimeout(
+      supabase
+        .from("category_budgets")
+        .insert(payload),
+    ).catch(() => ({ error: new Error("Network timed out") }));
 
     return !insertError;
   }
 
   async getDebtItems(userId: string): Promise<DebtItem[]> {
-    const { data, error } = await supabase
-      .from("debt_items")
-      .select("id, title, amount, due_date, person, note, is_paid, created_at")
-      .eq("user_id", userId)
-      .order("due_date", { ascending: true });
+    const { data, error } = await withNetworkTimeout(
+      supabase
+        .from("debt_items")
+        .select("id, title, amount, due_date, person, note, is_paid, created_at")
+        .eq("user_id", userId)
+        .order("due_date", { ascending: true }),
+    ).catch(() => ({ data: null, error: new Error("Network timed out") }));
 
     if (error || !data) {
       return [];
@@ -95,10 +104,12 @@ class FinancialPlanningService {
   }
 
   async replaceDebtItems(userId: string, debts: DebtItem[]): Promise<boolean> {
-    const { error: deleteError } = await supabase
-      .from("debt_items")
-      .delete()
-      .eq("user_id", userId);
+    const { error: deleteError } = await withNetworkTimeout(
+      supabase
+        .from("debt_items")
+        .delete()
+        .eq("user_id", userId),
+    ).catch(() => ({ error: new Error("Network timed out") }));
 
     if (deleteError) {
       return false;
@@ -120,7 +131,9 @@ class FinancialPlanningService {
       created_at: debt.createdAt ?? new Date().toISOString(),
     }));
 
-    const { error: insertError } = await supabase.from("debt_items").insert(payload);
+    const { error: insertError } = await withNetworkTimeout(
+      supabase.from("debt_items").insert(payload),
+    ).catch(() => ({ error: new Error("Network timed out") }));
 
     return !insertError;
   }

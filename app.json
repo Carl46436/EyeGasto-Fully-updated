@@ -2,7 +2,8 @@
   "expo": {
     "name": "EyeGasto",
     "slug": "eyegasto",
-    "version": "1.0.5",
+    "version": "1.0.8",
+    "description": "Track expenses, save receipt proof, manage monthly budgets, and review spending insights with EyeGasto.",
     "orientation": "portrait",
     "icon": "./assets/images/app2.png",
     "scheme": "expensetracker",
@@ -22,7 +23,13 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/app2.png"
+      "favicon": "./assets/images/app2.png",
+      "name": "EyeGasto",
+      "shortName": "EyeGasto",
+      "lang": "en",
+      "display": "standalone",
+      "themeColor": "#081225",
+      "backgroundColor": "#081225"
     },
     "plugins": [
       "expo-router",
@@ -55,7 +62,5 @@
     "updates": {
       "url": "https://u.expo.dev/4a6579cd-8d97-4134-a30d-e47a6cd072c9"
     }
-  },
-  "name": "EyeGasto",
-  "displayName": "EyeGasto"
+  }
 }

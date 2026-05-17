@@ -1,114 +1,86 @@
-# 👁️ EyeGasto Expense Tracker
+# EyeGasto Expense Tracker
 
-![React Native](https://img.shields.io/badge/React%20Native-0.7+-blue?logo=react)
-![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?logo=supabase)
-![Status](https://img.shields.io/badge/Status-Active-success)
+EyeGasto is an Expo Router expense tracker for mobile and web. It uses Supabase Auth, PostgreSQL, and Storage so users can register, verify email OTPs, sign in with email or username, track expenses, attach receipts, manage budget limits, review analytics, and export reports.
 
----
+## Features
 
-## 👋 Welcome!
+- Email registration, 8-digit OTP verification, login, recovery OTP, and password reset
+- First-time setup for username, monthly budget, currency, and app language
+- Expense create, edit, delete, receipt upload, and offline pending sync
+- Dedicated Overview, Budget, Stats, Gallery, and Profile dashboard tabs
+- Category budgets and debt reminders stored in Supabase tables
+- Spending momentum, category breakdown, receipt gallery, and export options
+- Web deployment through Expo static export with Vercel or Netlify configs
 
-**Credits:**
+## Tech Stack
 
-- **CarlDev** for designing and developing the app 🚀
+- Expo SDK 54 with Expo Router
+- React Native and React Native Web
+- TypeScript
+- Supabase Auth, PostgreSQL, and Storage
+- EAS build/update configuration
 
----
+## Project Structure
 
-## 📱 About EyeGasto
+```text
+expense_tracker/
+  app/                  Expo Router routes only
+  src/components/       UI screens and reusable components
+  src/components/dashboard/
+                        Dashboard helpers, types, and copy
+  src/services/         Supabase, auth, expense, storage, currency services
+  src/i18n/             Supported app language utilities
+  src/types/            Shared TypeScript models
+  supabase/migrations/  Database and storage schema
+  assets/               App icons and screenshots
+```
 
-**EyeGasto** is a modern expense tracking mobile app that helps users monitor, manage, and visualize their daily spending. It features a clean UI and real-time tracking for better financial awareness.
+## Environment
 
----
-
-## ✨ Features
-
-- 💸 Add, edit, and delete expenses
-- 📊 Real-time expense tracking and summaries
-- 📅 Daily and monthly spending overview
-- 🧾 Categorized expenses for better organization
-- 🔍 Clean and user-friendly interface
-- 🌙 (Optional) Dark mode support
-
----
-
-## 📸 Screenshots
-
-### 🏠 Home Screen
-
-![Home](assets/screenshots/home.jpg)
-
-### 🔐 Log-in Screen
-
-![Log-in](assets/screenshots/login.jpg)
-
-### 📝 Register Screen
-
-![Register](assets/screenshots/register.jpg)
-
-### 📊 Stats Screen
-
-![Stats](assets/screenshots/stats.jpg)
-
-### 👤 Profile Screen
-
-![Profile](assets/screenshots/profile.jpg)
-
-## ⚙️ Installation
+Create `.env` in `expense_tracker/`:
 
 ```bash
-# Clone the repository
-git clone https://github.com/Carl46436/EyeGasto-ExpenseTracker.git
+EXPO_PUBLIC_SUPABASE_URL=your_supabase_project_url
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-# Navigate to the project folder
-cd expense_tracker
+## Run Locally
 
-# Install dependencies
+```bash
 npm install
-
-# Run the app
 npx expo start
 ```
 
----
+For web:
 
-## 🛠 Tech Stack
-
-- **Frontend:** React Native
-- **Backend:** Node.js
-- **Database:** Supabase
-
----
-
-## 📂 Project Structure
-
-```
-EyeGasto/
-├── assets/
-├── components/
-├── screens/
-├── services/
-├── App.js
-└── package.json
+```bash
+npm run web
 ```
 
----
+## Build
 
-## 🚀 Future Improvements
+```bash
+npm run build:web
+eas build -p android --profile apk
+```
 
-- 🔐 User authentication
-- ☁️ Cloud sync across devices
-- 📈 Advanced analytics & charts
-- 💳 Budget planning feature
+## Supabase Setup
 
----
+Apply the migrations in `supabase/migrations/` before testing registration, expense sync, receipt uploads, budget planner, or debt reminders.
 
-## ⭐ Support
+Required backend resources include:
 
-If you like this project, give it a ⭐ on GitHub!
+- `expenses`
+- `category_budgets`
+- `debt_items`
+- `user_profiles`
+- `receipts` storage bucket
+- `resolve_login_email(login_identifier text)` RPC
 
----
+## Validation
 
-If you want, I can also:
-
-- make this **look like a top-tier GitHub project (with header banner + logo)**
-- or tailor it for **portfolio/resume use** 🔥
+```bash
+npx tsc --noEmit
+npm run lint
+npm run build:web
+```

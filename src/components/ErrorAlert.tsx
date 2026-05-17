@@ -24,6 +24,7 @@ export default function ErrorAlert({
 }: ErrorAlertProps) {
   const [visible, setVisible] = useState(true);
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
 
   const dismiss = useCallback(() => {
     Animated.timing(fadeAnim, {
@@ -35,6 +36,15 @@ export default function ErrorAlert({
       onDismiss?.();
     });
   }, [fadeAnim, onDismiss]);
+
+  useEffect(() => {
+    slideAnim.setValue(0);
+    Animated.timing(slideAnim, {
+      toValue: 1,
+      duration: 260,
+      useNativeDriver: Platform.OS !== "web",
+    }).start();
+  }, [slideAnim]);
 
   useEffect(() => {
     if (!duration) {
@@ -54,7 +64,22 @@ export default function ErrorAlert({
     type === "error" ? "#FF6B6B" : type === "warning" ? "#FFA500" : "#4CAF50";
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          opacity: fadeAnim,
+          transform: [
+            {
+              translateY: slideAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [-14, 0],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
       <View style={[styles.alert, { backgroundColor }]}>
         <Text style={styles.message}>{message}</Text>
         <TouchableOpacity onPress={dismiss} style={styles.closeBtn}>

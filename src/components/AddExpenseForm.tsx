@@ -16,6 +16,8 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { CurrencyCode } from "@/src/services/currency";
+import { AppLanguage, resolveUiLanguage } from "@/src/i18n/appLanguage";
+import { getLocalizedCategoryName } from "@/src/utils/category";
 import { createShadow } from "@/src/utils/shadow";
 
 interface Props {
@@ -34,6 +36,7 @@ interface Props {
   onSuccess?: () => void;
   embedded?: boolean;
   currencyCode?: CurrencyCode;
+  language?: AppLanguage;
   initialValues?: {
     description?: string;
     amount?: number;
@@ -63,6 +66,7 @@ export default function AddExpenseForm({
   onSuccess,
   embedded = false,
   currencyCode = "PHP",
+  language = "English",
   initialValues,
   onNotify,
 }: Props) {
@@ -79,6 +83,91 @@ export default function AddExpenseForm({
   const [isRecurringMonthly, setIsRecurringMonthly] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCategoryMenu, setShowCategoryMenu] = useState(false);
+  const uiLanguage = resolveUiLanguage(language);
+  const copy =
+    uiLanguage === "Filipino"
+      ? {
+          photoPermission:
+            "Kailangan ng photo access para makapag-attach ng resibo sa gastos.",
+          imageError: "Hindi namin mapili ang larawang iyon.",
+          cameraPermission:
+            "Kailangan ng camera access para makakuha ka ng resibo direkta.",
+          cameraError: "Hindi namin mabuksan ang camera.",
+          invalidExpense:
+            "Maglagay ng valid na pangalan ng gastos at halaga.",
+          expenseName: "Pangalan ng gastos",
+          expensePlaceholder: "Hapunan",
+          amount: "Halaga",
+          category: "Kategorya",
+          selectCategory: "Pumili ng kategorya",
+          notes: "Tala",
+          notesPlaceholder: "Maikling context, tindahan, o reminder",
+          receiptImage: "Larawan ng resibo",
+          receiptSubtitle:
+            "Mag-attach ng resibo ngayon o idagdag later habang ine-edit.",
+          receiptSubtitleFull:
+            "Mag-save ng photo kasama ng gastos na ito para may patunay later.",
+          takePhoto: "Kuhanan",
+          chooseImage: "Pumili ng larawan",
+          receiptAttached: "May naka-attach na resibo",
+          addReceipt: "Magdagdag ng resibo",
+          receiptHint:
+            "Pinakamaganda ang PNG o JPG images para sa expense proof.",
+          replaceImage: "I-tap para palitan ang larawan",
+          tapAddReceipt: "I-tap para magdagdag ng resibo",
+          supportedImages: "Supported ang JPG at PNG receipts",
+          repeatMonthly: "Ulitin buwan-buwan",
+          repeatMonthlyAlt: "Ulitin kada buwan",
+          recurringSubtitle:
+            "I-save ito bilang recurring monthly expense plan.",
+          recurringSubtitleAlt:
+            "I-save ang gastos ngayon at ulitin buwan-buwan sa parehong araw.",
+          savingExpense: "Sine-save ang gastos...",
+          saving: "Sine-save...",
+          addExpense: "Magdagdag ng gastos",
+          saveExpense: "I-save ang gastos",
+        }
+      : {
+          photoPermission:
+            "Photo access is required so receipts can be attached to expenses.",
+          imageError: "We could not select that image.",
+          cameraPermission:
+            "Camera access is required so you can capture a receipt directly.",
+          cameraError: "We could not open the camera.",
+          invalidExpense:
+            "Please enter a valid expense name and amount.",
+          expenseName: "Expense name",
+          expensePlaceholder: "Dinner with Kean",
+          amount: "Amount",
+          category: "Category",
+          selectCategory: "Select a category",
+          notes: "Notes",
+          notesPlaceholder: "Short context, merchant, or reminder",
+          receiptImage: "Receipt image",
+          receiptSubtitle:
+            "Attach a receipt now or add one later while editing.",
+          receiptSubtitleFull:
+            "Save a photo with this expense for future proof.",
+          takePhoto: "Take photo",
+          chooseImage: "Choose image",
+          receiptAttached: "Receipt attached",
+          addReceipt: "Add a receipt",
+          receiptHint:
+            "PNG or JPG images work best for quick expense proof.",
+          replaceImage: "Tap to replace image",
+          tapAddReceipt: "Tap to add receipt",
+          supportedImages: "JPG and PNG receipts are supported",
+          repeatMonthly: "Repeat monthly",
+          repeatMonthlyAlt: "Repeat every month",
+          recurringSubtitle:
+            "Save this as a recurring monthly expense plan.",
+          recurringSubtitleAlt:
+            "Save this expense now and recreate it monthly on the same day.",
+          savingExpense: "Saving expense...",
+          saving: "Saving...",
+          addExpense: "Add expense",
+          saveExpense: "Save expense",
+        };
 
   const categoryOptions = Array.from(
     new Set(
@@ -107,7 +196,7 @@ export default function AddExpenseForm({
 
       if (permission.status !== "granted") {
         onNotify?.(
-          "Photo access is required so receipts can be attached to expenses.",
+          copy.photoPermission,
           "warning",
         );
         return;
@@ -125,7 +214,7 @@ export default function AddExpenseForm({
       }
     } catch (error) {
       console.error("Failed to pick receipt image", error);
-      onNotify?.("We could not select that image.", "error");
+      onNotify?.(copy.imageError, "error");
     }
   };
 
@@ -135,7 +224,7 @@ export default function AddExpenseForm({
 
       if (permission.status !== "granted") {
         onNotify?.(
-          "Camera access is required so you can capture a receipt directly.",
+          copy.cameraPermission,
           "warning",
         );
         return;
@@ -153,7 +242,7 @@ export default function AddExpenseForm({
       }
     } catch (error) {
       console.error("Failed to capture receipt image", error);
-      onNotify?.("We could not open the camera.", "error");
+      onNotify?.(copy.cameraError, "error");
     }
   };
 
@@ -164,7 +253,7 @@ export default function AddExpenseForm({
       Number.isNaN(numericAmount) ||
       numericAmount <= 0
     ) {
-      onNotify?.("Please enter a valid expense name and amount.", "warning");
+      onNotify?.(copy.invalidExpense, "warning");
       return;
     }
 
@@ -206,11 +295,11 @@ export default function AddExpenseForm({
           <View style={[styles.row, isCompact && styles.rowStack]}>
             <View style={styles.inputBlock}>
               <Text style={[styles.label, isLight && styles.labelLight]}>
-                Expense name
+                {copy.expenseName}
               </Text>
               <TextInput
                 style={[styles.input, isLight && styles.inputLight]}
-                placeholder="Dinner with Kean"
+                placeholder={copy.expensePlaceholder}
                 placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
                 value={description}
                 onChangeText={setDescription}
@@ -224,7 +313,7 @@ export default function AddExpenseForm({
               ]}
             >
               <Text style={[styles.label, isLight && styles.labelLight]}>
-                Amount ({currencyCode})
+                {copy.amount} ({currencyCode})
               </Text>
               <TextInput
                 style={[styles.input, isLight && styles.inputLight]}
@@ -240,7 +329,7 @@ export default function AddExpenseForm({
           <View style={styles.row}>
             <View style={styles.inputBlock}>
               <Text style={[styles.label, isLight && styles.labelLight]}>
-                Category
+                {copy.category}
               </Text>
               <TouchableOpacity
                 activeOpacity={0.86}
@@ -255,7 +344,9 @@ export default function AddExpenseForm({
                     isLight && category && styles.dropdownValueLight,
                   ]}
                 >
-                  {category || "Select a category"}
+                  {category
+                    ? getLocalizedCategoryName(category, uiLanguage)
+                    : copy.selectCategory}
                 </Text>
                 <Ionicons
                   name={showCategoryMenu ? "chevron-up" : "chevron-down"}
@@ -301,7 +392,7 @@ export default function AddExpenseForm({
                                 styles.dropdownOptionTextActiveLight,
                             ]}
                           >
-                            {option}
+                            {getLocalizedCategoryName(option, uiLanguage)}
                           </Text>
                           {selected ? (
                             <Ionicons
@@ -321,7 +412,7 @@ export default function AddExpenseForm({
 
           <View style={styles.inputBlock}>
             <Text style={[styles.label, isLight && styles.labelLight]}>
-              Notes
+              {copy.notes}
             </Text>
             <TextInput
               style={[
@@ -329,7 +420,7 @@ export default function AddExpenseForm({
                 styles.notesInput,
                 isLight && styles.inputLight,
               ]}
-              placeholder="Short context, merchant, or reminder"
+              placeholder={copy.notesPlaceholder}
               placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
               value={notes}
               onChangeText={setNotes}
@@ -348,7 +439,7 @@ export default function AddExpenseForm({
                     isLight && styles.receiptTitleLight,
                   ]}
                 >
-                  Receipt image
+                  {copy.receiptImage}
                 </Text>
                 <Text
                   style={[
@@ -356,7 +447,7 @@ export default function AddExpenseForm({
                     isLight && styles.receiptSubtitleLight,
                   ]}
                 >
-                  Attach a receipt now or add one later while editing.
+                  {copy.receiptSubtitle}
                 </Text>
               </View>
             </View>
@@ -378,7 +469,7 @@ export default function AddExpenseForm({
                     isLight && styles.receiptActionTextLight,
                   ]}
                 >
-                  Take photo
+                  {copy.takePhoto}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -397,7 +488,7 @@ export default function AddExpenseForm({
                     isLight && styles.receiptActionTextLight,
                   ]}
                 >
-                  Choose image
+                  {copy.chooseImage}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -417,7 +508,7 @@ export default function AddExpenseForm({
                 </TouchableOpacity>
                 <View style={styles.imageActionPill}>
                   <Ionicons name="checkmark-circle" size={14} color="#67E8F9" />
-                  <Text style={styles.imageActionText}>Receipt attached</Text>
+                  <Text style={styles.imageActionText}>{copy.receiptAttached}</Text>
                 </View>
               </View>
             ) : (
@@ -440,7 +531,7 @@ export default function AddExpenseForm({
                     isLight && styles.previewPlaceholderTitleLight,
                   ]}
                 >
-                  Add a receipt
+                  {copy.addReceipt}
                 </Text>
                 <Text
                   style={[
@@ -448,7 +539,7 @@ export default function AddExpenseForm({
                     isLight && styles.previewPlaceholderTextLight,
                   ]}
                 >
-                  PNG or JPG images work best for quick expense proof.
+                  {copy.receiptHint}
                 </Text>
               </TouchableOpacity>
             )}
@@ -470,7 +561,7 @@ export default function AddExpenseForm({
                   isLight && styles.recurringTitleLight,
                 ]}
               >
-                Repeat monthly
+                {copy.repeatMonthly}
               </Text>
               <Text
                 style={[
@@ -478,7 +569,7 @@ export default function AddExpenseForm({
                   isLight && styles.recurringSubtitleLight,
                 ]}
               >
-                Save this as a recurring monthly expense plan.
+                {copy.recurringSubtitle}
               </Text>
             </View>
             <View
@@ -512,7 +603,7 @@ export default function AddExpenseForm({
                 <Ionicons name="add" size={16} color="#082F49" />
               </View>
               <Text style={styles.submitButtonText}>
-                {isSubmitting ? "Saving expense..." : "Add expense"}
+                {isSubmitting ? copy.savingExpense : copy.addExpense}
               </Text>
             </TouchableOpacity>
           </LinearGradient>
@@ -526,11 +617,11 @@ export default function AddExpenseForm({
         <View style={[styles.row, isCompact && styles.rowStack]}>
           <View style={styles.inputBlock}>
             <Text style={[styles.label, isLight && styles.labelLight]}>
-              Expense name
+              {copy.expenseName}
             </Text>
             <TextInput
               style={[styles.input, isLight && styles.inputLight]}
-              placeholder="Dinner with Kean"
+              placeholder={copy.expensePlaceholder}
               placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
               value={description}
               onChangeText={setDescription}
@@ -544,7 +635,7 @@ export default function AddExpenseForm({
             ]}
           >
               <Text style={[styles.label, isLight && styles.labelLight]}>
-                Amount ({currencyCode})
+                {copy.amount} ({currencyCode})
               </Text>
             <TextInput
               style={[styles.input, isLight && styles.inputLight]}
@@ -560,7 +651,7 @@ export default function AddExpenseForm({
         <View style={styles.row}>
           <View style={styles.inputBlock}>
             <Text style={[styles.label, isLight && styles.labelLight]}>
-              Category
+              {copy.category}
             </Text>
             <TouchableOpacity
               activeOpacity={0.86}
@@ -575,7 +666,9 @@ export default function AddExpenseForm({
                   isLight && category && styles.dropdownValueLight,
                 ]}
               >
-                {category || "Select a category"}
+                {category
+                  ? getLocalizedCategoryName(category, uiLanguage)
+                  : copy.selectCategory}
               </Text>
               <Ionicons
                 name={showCategoryMenu ? "chevron-up" : "chevron-down"}
@@ -619,7 +712,7 @@ export default function AddExpenseForm({
                           isLight && selected && styles.dropdownOptionTextActiveLight,
                         ]}
                       >
-                        {option}
+                        {getLocalizedCategoryName(option, uiLanguage)}
                         </Text>
                         {selected ? (
                           <Ionicons name="checkmark" size={16} color="#22D3EE" />
@@ -635,7 +728,7 @@ export default function AddExpenseForm({
 
         <View style={styles.inputBlock}>
           <Text style={[styles.label, isLight && styles.labelLight]}>
-            Notes
+            {copy.notes}
           </Text>
           <TextInput
             style={[
@@ -643,7 +736,7 @@ export default function AddExpenseForm({
               styles.notesInput,
               isLight && styles.inputLight,
             ]}
-            placeholder="Short context, merchant, or reminder"
+            placeholder={copy.notesPlaceholder}
             placeholderTextColor={isLight ? "#94A3B8" : "#64748B"}
             value={notes}
             onChangeText={setNotes}
@@ -660,7 +753,7 @@ export default function AddExpenseForm({
                   isLight && styles.receiptTitleLight,
                 ]}
               >
-                Receipt image
+                {copy.receiptImage}
               </Text>
               <Text
                 style={[
@@ -668,7 +761,7 @@ export default function AddExpenseForm({
                   isLight && styles.receiptSubtitleLight,
                 ]}
               >
-                Save a photo with this expense for future proof.
+                {copy.receiptSubtitleFull}
               </Text>
             </View>
             </View>
@@ -690,7 +783,7 @@ export default function AddExpenseForm({
                     isLight && styles.receiptActionTextLight,
                   ]}
                 >
-                  Take photo
+                  {copy.takePhoto}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -709,7 +802,7 @@ export default function AddExpenseForm({
                     isLight && styles.receiptActionTextLight,
                   ]}
                 >
-                  Choose image
+                  {copy.chooseImage}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -727,7 +820,7 @@ export default function AddExpenseForm({
               />
               <View style={styles.imageActionPill}>
                 <Ionicons name="image-outline" size={15} color="#E0F2FE" />
-                <Text style={styles.imageActionText}>Tap to replace image</Text>
+                <Text style={styles.imageActionText}>{copy.replaceImage}</Text>
               </View>
               <TouchableOpacity
                 style={styles.removeImageButton}
@@ -752,7 +845,7 @@ export default function AddExpenseForm({
                   isLight && styles.previewPlaceholderTitleLight,
                 ]}
               >
-                Tap to add receipt
+                {copy.tapAddReceipt}
               </Text>
               <Text
                 style={[
@@ -760,7 +853,7 @@ export default function AddExpenseForm({
                   isLight && styles.previewPlaceholderTextLight,
                 ]}
               >
-                JPG and PNG receipts are supported
+                {copy.supportedImages}
               </Text>
             </TouchableOpacity>
           )}
@@ -782,7 +875,7 @@ export default function AddExpenseForm({
                 isLight && styles.recurringTitleLight,
               ]}
             >
-              Repeat every month
+              {copy.repeatMonthlyAlt}
             </Text>
             <Text
               style={[
@@ -790,7 +883,7 @@ export default function AddExpenseForm({
                 isLight && styles.recurringSubtitleLight,
               ]}
             >
-              Save this expense now and recreate it monthly on the same day.
+              {copy.recurringSubtitleAlt}
             </Text>
           </View>
           <View
@@ -824,7 +917,7 @@ export default function AddExpenseForm({
               <Ionicons name="add" size={20} color="#020617" />
             </View>
             <Text style={styles.submitButtonText}>
-              {isSubmitting ? "Saving..." : "Save expense"}
+              {isSubmitting ? copy.saving : copy.saveExpense}
             </Text>
           </LinearGradient>
         </TouchableOpacity>

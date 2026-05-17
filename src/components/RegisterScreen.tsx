@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,9 +17,17 @@ import {
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppLanguage, resolveUiLanguage } from "@/src/i18n/appLanguage";
 
 interface Props {
-  onRegister: (email: string, password: string, name: string) => void;
+  language?: AppLanguage;
+  onRegister: (
+    email: string,
+    password: string,
+    name: string,
+    username: string,
+  ) => void;
   onBackPress: () => void;
   onLoginPress: () => void;
 }
@@ -38,20 +47,120 @@ const TERMS_MESSAGE =
   "Privacy note: Your account profile, expenses, and receipt files are processed to provide dashboard, sync, and reporting features.";
 
 export default function RegisterScreen({
+  language = "English",
   onRegister,
   onBackPress,
   onLoginPress,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWebWide = Platform.OS === "web" && width >= 960;
+  const bottomInset = Platform.OS === "web" ? 0 : insets.bottom;
+  const authContentInsetStyle = {
+    paddingTop: Math.max(isWebWide ? 42 : 26, insets.top + 12),
+    paddingBottom: isWebWide ? 42 : 220 + bottomInset,
+  };
+  const KeyboardShell = Platform.OS === "ios" ? KeyboardAvoidingView : View;
+  const AuthCard = Platform.OS === "android" ? View : BlurView;
+  const authCardProps =
+    Platform.OS === "android"
+      ? {}
+      : { intensity: 30, tint: "dark" as const };
+  const shouldTrackFocusState = Platform.OS !== "android";
+  const uiLanguage = resolveUiLanguage(language);
+  const copy =
+    uiLanguage === "Filipino"
+      ? {
+          back: "Back",
+          eyebrow: "Simulan na",
+          title: "Mas simple ang pag-track.",
+          subtitle:
+            "Gumawa ng account para mag-save ng receipts, makita ang spending charts, at masubaybayan ang budget at gastos mo.",
+          sideNotes: [
+            "Mag-log sa phone, mag-review sa computer",
+            "Nasa iisang lugar ang receipts at settings mo",
+            "Kalma at malinaw na dashboard para sa araw-araw mong budget",
+          ],
+          cardTitle: "Gumawa ng account",
+          cardSubtitle:
+            "Ilang detalye lang para masimulan ang smart budget mo.",
+          fullName: "Buong pangalan",
+          fullNamePlaceholder: "Juan Dela Cruz",
+          username: "Username",
+          usernamePlaceholder: "iyong_username",
+          email: "Email",
+          password: "Password",
+          passwordPlaceholder: "Gumawa ng password",
+          termsLead: "Sumasang-ayon ako sa",
+          termsLink: "Terms and Conditions",
+          submit: "Gumawa ng account",
+          switchText: "May account ka na? Mag-log in",
+          termsTitle: "Terms and Conditions",
+          termsButton: "Naiintindihan ko",
+          errors: {
+            name: "Kailangan ang buong pangalan",
+            usernameRequired: "Kailangan ang username",
+            usernameFormat:
+              "Gumamit ng 3-24 lowercase letters, numbers, o underscore",
+            emailRequired: "Kailangan ang email",
+            emailInvalid: "Hindi valid ang email address",
+            passwordRequired: "Kailangan ang password",
+            passwordLength: "Dapat hindi bababa sa 6 characters ang password",
+            terms: "Mangyaring sumang-ayon sa terms para magpatuloy",
+          },
+        }
+      : {
+          back: "Back",
+          eyebrow: "Get started!",
+          title: "Tracking made simple.",
+          subtitle:
+            "Create an account to save receipts, see your spending charts, and track your budget and expenses.",
+          sideNotes: [
+            "Log on your phone, review on your computer",
+            "Your receipts and settings in one place",
+            "A calm dashboard for your daily budget",
+          ],
+          cardTitle: "Create account",
+          cardSubtitle:
+            "Just a few details to get your smart budget started.",
+          fullName: "Full name",
+          fullNamePlaceholder: "John Kyle Perez",
+          username: "Username",
+          usernamePlaceholder: "your_username",
+          email: "Email",
+          password: "Password",
+          passwordPlaceholder: "Create a password",
+          termsLead: "I agree to the",
+          termsLink: "Terms and Conditions",
+          submit: "Create Account",
+          switchText: "Already have an account? Log in",
+          termsTitle: "Terms and Conditions",
+          termsButton: "I Understand",
+          errors: {
+            name: "Full name is required",
+            usernameRequired: "Username is required",
+            usernameFormat:
+              "Use 3-24 lowercase letters, numbers, or underscores",
+            emailRequired: "Email is required",
+            emailInvalid: "Invalid email address",
+            passwordRequired: "Password is required",
+            passwordLength: "Password must be at least 6 characters",
+            terms: "Please agree to the terms to continue",
+          },
+        };
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [focusedField, setFocusedField] = useState<
+    "name" | "username" | "email" | "password" | null
+  >(null);
   const [errors, setErrors] = useState({
     name: "",
+    username: "",
     email: "",
     password: "",
     terms: "",
@@ -59,15 +168,36 @@ export default function RegisterScreen({
 
   const scrollRef = useRef<ScrollView>(null);
   const entranceAnim = useRef(new Animated.Value(0)).current;
+  const usernameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
+  const pendingScrollTargetRef = useRef<number | null>(null);
+  const [keyboardInset, setKeyboardInset] = useState(0);
+  const shouldAutoScrollFocusedField = Platform.OS === "ios" && !isWebWide;
 
   const scrollToField = (y: number) => {
+    if (!shouldAutoScrollFocusedField) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y, animated: true });
+    });
+  };
+
+  const ensureFieldVisible = (y: number) => {
     if (Platform.OS === "web" || isWebWide) {
       return;
     }
 
-    scrollRef.current?.scrollTo({ y, animated: true });
+    const nextY = Math.max(0, y - 36);
+    pendingScrollTargetRef.current = nextY;
+
+    if (keyboardInset > 0) {
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollTo({ y: nextY, animated: true });
+      });
+    }
   };
 
   useEffect(() => {
@@ -78,59 +208,88 @@ export default function RegisterScreen({
     }).start();
   }, [entranceAnim]);
 
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const handleShow = (event: any) => {
+      const nextInset = Math.max(0, event?.endCoordinates?.height ?? 0);
+      setKeyboardInset(nextInset);
+
+      if (pendingScrollTargetRef.current != null) {
+        const targetY = pendingScrollTargetRef.current;
+        requestAnimationFrame(() => {
+          scrollRef.current?.scrollTo({ y: targetY, animated: true });
+        });
+      }
+    };
+
+    const handleHide = () => {
+      setKeyboardInset(0);
+      pendingScrollTargetRef.current = null;
+    };
+
+    const showSub = Keyboard.addListener(showEvent, handleShow);
+    const hideSub = Keyboard.addListener(hideEvent, handleHide);
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const handleRegister = () => {
     let valid = true;
-    const nextErrors = { name: "", email: "", password: "", terms: "" };
+    const nextErrors = {
+      name: "",
+      username: "",
+      email: "",
+      password: "",
+      terms: "",
+    };
 
     if (!name.trim()) {
-      nextErrors.name = "Full name is required";
+      nextErrors.name = copy.errors.name;
+      valid = false;
+    }
+
+    if (!username.trim()) {
+      nextErrors.username = copy.errors.usernameRequired;
+      valid = false;
+    } else if (!/^[a-z0-9_]{3,24}$/.test(username.trim().toLowerCase())) {
+      nextErrors.username = copy.errors.usernameFormat;
       valid = false;
     }
 
     if (!email.trim()) {
-      nextErrors.email = "Email is required";
+      nextErrors.email = copy.errors.emailRequired;
       valid = false;
     } else if (!/\S+@\S+\.\S+/.test(email)) {
-      nextErrors.email = "Invalid email address";
+      nextErrors.email = copy.errors.emailInvalid;
       valid = false;
     }
 
     if (!password.trim()) {
-      nextErrors.password = "Password is required";
+      nextErrors.password = copy.errors.passwordRequired;
       valid = false;
     } else if (password.length < 6) {
-      nextErrors.password = "Password must be at least 6 characters";
+      nextErrors.password = copy.errors.passwordLength;
       valid = false;
     }
 
     if (!agreeToTerms) {
-      nextErrors.terms = "Please agree to the terms to continue";
+      nextErrors.terms = copy.errors.terms;
       valid = false;
     }
 
     setErrors(nextErrors);
 
     if (valid) {
-      onRegister(email, password, name);
+      onRegister(email, password, name, username.trim().toLowerCase());
     }
   };
 
   const showTerms = () => {
-    const message =
-      "By creating an account, you agree to:\n\n" +
-      "1. Use EyeGasto for lawful personal or business expense tracking only.\n" +
-      "2. Provide accurate account details and keep your password secure.\n" +
-      "3. You are responsible for all activity that happens under your account.\n" +
-      "4. Upload only lawful, relevant, and non-harmful receipt images/content.\n" +
-      "5. Do not upload other people’s sensitive data without permission.\n" +
-      "6. Keep your own backup of critical records and exported reports.\n" +
-      "7. Review exported/shared financial files carefully before sending.\n" +
-      "8. EyeGasto may update features and terms as the app improves.\n" +
-      "9. Continued use after updates means you accept the revised terms.\n" +
-      "10. If you disagree with these terms, do not create or use an account.\n\n" +
-      "Privacy note: Your account profile, expenses, and receipt files are processed to provide dashboard, sync, and reporting features.";
-
-    void message;
     setShowTermsModal(true);
   };
 
@@ -145,10 +304,14 @@ export default function RegisterScreen({
       <View style={styles.backgroundOrbTwo} />
       <View style={styles.backgroundMesh} />
 
-      <KeyboardAvoidingView
+      <KeyboardShell
         style={styles.keyboardShell}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
+        {...(Platform.OS === "ios"
+          ? {
+              behavior: "padding" as const,
+              keyboardVerticalOffset: 24,
+            }
+          : {})}
       >
         <ScrollView
           ref={scrollRef}
@@ -156,9 +319,15 @@ export default function RegisterScreen({
             styles.scrollContent,
             !isWebWide && styles.scrollContentMobile,
             isWebWide && styles.scrollContentWide,
+            authContentInsetStyle,
+            !isWebWide && keyboardInset > 0
+              ? { paddingBottom: keyboardInset + bottomInset + 36 }
+              : null,
           ]}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="always"
+          {...(Platform.OS === "ios"
+            ? { keyboardDismissMode: "on-drag" as const }
+            : {})}
           showsVerticalScrollIndicator={false}
         >
           <Animated.View
@@ -183,7 +352,7 @@ export default function RegisterScreen({
             >
               <TouchableOpacity onPress={onBackPress} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={16} color="#E0F2FE" />
-                <Text style={styles.backText}>Back</Text>
+                <Text style={styles.backText}>{copy.back}</Text>
               </TouchableOpacity>
 
               <View style={styles.brandRow}>
@@ -201,22 +370,15 @@ export default function RegisterScreen({
                 </View>
               </View>
 
-              <Text style={styles.eyebrow}>Get started!</Text>
+              <Text style={styles.eyebrow}>{copy.eyebrow}</Text>
               <Text style={[styles.title, isWebWide && styles.titleWide]}>
-                Tracking made simple.
+                {copy.title}
               </Text>
-              <Text style={styles.subtitle}>
-                Create an account to save receipts, see your spending charts,
-                and track your budget and expenses.
-              </Text>
+              <Text style={styles.subtitle}>{copy.subtitle}</Text>
 
               {isWebWide ? (
                 <View style={styles.sideNotes}>
-                  {[
-                    "Log on your phone, review on your computer",
-                    "Your receipts and settings in one place",
-                    "A calm dashboard for your daily budget",
-                  ].map((item) => (
+                  {copy.sideNotes.map((item) => (
                     <View key={item} style={styles.noteRow}>
                       <View style={styles.noteDot} />
                       <Text style={styles.noteText}>{item}</Text>
@@ -226,15 +388,18 @@ export default function RegisterScreen({
               ) : null}
             </View>
 
-            <BlurView intensity={30} tint="dark" style={styles.card}>
-              <Text style={styles.cardTitle}>Create account</Text>
-              <Text style={styles.cardSubtitle}>
-                Just a few details to get your smart budget started.
-              </Text>
+            <AuthCard {...authCardProps} style={styles.card}>
+              <Text style={styles.cardTitle}>{copy.cardTitle}</Text>
+              <Text style={styles.cardSubtitle}>{copy.cardSubtitle}</Text>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Full name</Text>
-                <View style={styles.inputWrapper}>
+                <Text style={styles.label}>{copy.fullName}</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    focusedField === "name" && styles.inputWrapperFocused,
+                  ]}
+                >
                   <Ionicons
                     name="person-outline"
                     size={18}
@@ -243,13 +408,26 @@ export default function RegisterScreen({
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="John Kyle Perez"
+                    placeholder={copy.fullNamePlaceholder}
                     value={name}
                     onChangeText={setName}
-                    onFocus={() => scrollToField(220)}
+                    onFocus={() => {
+                      if (shouldTrackFocusState) {
+                        setFocusedField("name");
+                        scrollToField(220);
+                      }
+                      ensureFieldVisible(220);
+                    }}
+                    onBlur={() => {
+                      if (shouldTrackFocusState) {
+                        setFocusedField((value) =>
+                          value === "name" ? null : value,
+                        );
+                      }
+                    }}
                     placeholderTextColor="#6B7A90"
                     returnKeyType="next"
-                    onSubmitEditing={() => emailRef.current?.focus()}
+                    onSubmitEditing={() => usernameRef.current?.focus()}
                     autoCapitalize="words"
                   />
                 </View>
@@ -259,8 +437,58 @@ export default function RegisterScreen({
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
-                <View style={styles.inputWrapper}>
+                <Text style={styles.label}>{copy.username}</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    focusedField === "username" && styles.inputWrapperFocused,
+                  ]}
+                >
+                  <Ionicons
+                    name="at-outline"
+                    size={18}
+                    color="#94A3B8"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    ref={usernameRef}
+                    style={styles.input}
+                    placeholder={copy.usernamePlaceholder}
+                    value={username}
+                    onChangeText={(value) => setUsername(value.toLowerCase())}
+                    onFocus={() => {
+                      if (shouldTrackFocusState) {
+                        setFocusedField("username");
+                        scrollToField(290);
+                      }
+                      ensureFieldVisible(290);
+                    }}
+                    onBlur={() => {
+                      if (shouldTrackFocusState) {
+                        setFocusedField((value) =>
+                          value === "username" ? null : value,
+                        );
+                      }
+                    }}
+                    placeholderTextColor="#6B7A90"
+                    returnKeyType="next"
+                    onSubmitEditing={() => emailRef.current?.focus()}
+                    autoCapitalize="none"
+                  />
+                </View>
+                {errors.username ? (
+                  <Text style={styles.error}>{errors.username}</Text>
+                ) : null}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>{copy.email}</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    focusedField === "email" && styles.inputWrapperFocused,
+                  ]}
+                >
                   <Ionicons
                     name="mail-outline"
                     size={18}
@@ -273,7 +501,20 @@ export default function RegisterScreen({
                     placeholder="you@gmail.com"
                     value={email}
                     onChangeText={setEmail}
-                    onFocus={() => scrollToField(320)}
+                    onFocus={() => {
+                      if (shouldTrackFocusState) {
+                        setFocusedField("email");
+                        scrollToField(370);
+                      }
+                      ensureFieldVisible(370);
+                    }}
+                    onBlur={() => {
+                      if (shouldTrackFocusState) {
+                        setFocusedField((value) =>
+                          value === "email" ? null : value,
+                        );
+                      }
+                    }}
                     keyboardType="email-address"
                     placeholderTextColor="#6B7A90"
                     returnKeyType="next"
@@ -287,8 +528,13 @@ export default function RegisterScreen({
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Password</Text>
-                <View style={styles.inputWrapper}>
+                <Text style={styles.label}>{copy.password}</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    focusedField === "password" && styles.inputWrapperFocused,
+                  ]}
+                >
                   <Ionicons
                     name="lock-closed-outline"
                     size={18}
@@ -298,10 +544,23 @@ export default function RegisterScreen({
                   <TextInput
                     ref={passwordRef}
                     style={styles.input}
-                    placeholder="Create a password"
+                    placeholder={copy.passwordPlaceholder}
                     value={password}
                     onChangeText={setPassword}
-                    onFocus={() => scrollToField(430)}
+                    onFocus={() => {
+                      if (shouldTrackFocusState) {
+                        setFocusedField("password");
+                        scrollToField(480);
+                      }
+                      ensureFieldVisible(480);
+                    }}
+                    onBlur={() => {
+                      if (shouldTrackFocusState) {
+                        setFocusedField((value) =>
+                          value === "password" ? null : value,
+                        );
+                      }
+                    }}
                     secureTextEntry={!showPassword}
                     placeholderTextColor="#6B7A90"
                     returnKeyType="go"
@@ -339,9 +598,9 @@ export default function RegisterScreen({
                 </TouchableOpacity>
 
                 <View style={styles.termsCopy}>
-                  <Text style={styles.termsText}>I agree to the</Text>
+                  <Text style={styles.termsText}>{copy.termsLead}</Text>
                   <TouchableOpacity onPress={showTerms} activeOpacity={0.8}>
-                    <Text style={styles.termsLink}>Terms and Conditions</Text>
+                    <Text style={styles.termsLink}>{copy.termsLink}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -354,7 +613,7 @@ export default function RegisterScreen({
                 onPress={handleRegister}
                 activeOpacity={0.88}
               >
-                <Text style={styles.primaryButtonText}>Create Account</Text>
+                <Text style={styles.primaryButtonText}>{copy.submit}</Text>
                 <Ionicons name="arrow-forward" size={16} color="#020617" />
               </TouchableOpacity>
 
@@ -363,14 +622,12 @@ export default function RegisterScreen({
                 onPress={onLoginPress}
                 activeOpacity={0.8}
               >
-                <Text style={styles.switchText}>
-                  Already have an account? Log in
-                </Text>
+                <Text style={styles.switchText}>{copy.switchText}</Text>
               </TouchableOpacity>
-            </BlurView>
+            </AuthCard>
           </Animated.View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardShell>
 
       <Modal
         visible={showTermsModal}
@@ -378,10 +635,18 @@ export default function RegisterScreen({
         animationType="fade"
         onRequestClose={() => setShowTermsModal(false)}
       >
-        <View style={styles.termsModalBackdrop}>
+        <View
+          style={[
+            styles.termsModalBackdrop,
+            {
+              paddingTop: Math.max(18, insets.top + 10),
+              paddingBottom: Math.max(18, insets.bottom + 10),
+            },
+          ]}
+        >
           <BlurView intensity={30} tint="dark" style={styles.termsModalCard}>
             <View style={styles.termsModalHeader}>
-              <Text style={styles.termsModalTitle}>Terms and Conditions</Text>
+              <Text style={styles.termsModalTitle}>{copy.termsTitle}</Text>
               <TouchableOpacity
                 onPress={() => setShowTermsModal(false)}
                 style={styles.termsModalClose}
@@ -404,7 +669,7 @@ export default function RegisterScreen({
               onPress={() => setShowTermsModal(false)}
               activeOpacity={0.88}
             >
-              <Text style={styles.termsModalButtonText}>I Understand</Text>
+              <Text style={styles.termsModalButtonText}>{copy.termsButton}</Text>
             </TouchableOpacity>
           </BlurView>
         </View>
@@ -482,11 +747,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     alignSelf: "flex-start",
+    paddingRight: 4,
   },
   backText: {
     color: "#E0F2FE",
     fontSize: 14,
     fontWeight: "700",
+    flexShrink: 0,
+    paddingRight: 2,
+    includeFontPadding: false,
   },
   brandRow: {
     marginTop: 10,
@@ -612,6 +881,14 @@ const styles = StyleSheet.create({
     borderColor: "rgba(148, 163, 184, 0.12)",
     backgroundColor: "rgba(15, 23, 42, 0.92)",
     paddingHorizontal: 14,
+  },
+  inputWrapperFocused: {
+    borderColor: "rgba(103, 232, 249, 0.58)",
+    shadowColor: "#22D3EE",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
   inputIcon: {
     marginRight: 10,

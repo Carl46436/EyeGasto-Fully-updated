@@ -1,0 +1,633 @@
+import { AppLanguage } from "@/src/i18n/appLanguage";
+
+export const getLanguageCopy = (language: AppLanguage): Record<string, string> => {
+  switch (language) {
+    case "Filipino":
+      return {
+        navOverview: "Overview",
+        navBudget: "Budget",
+        navStats: "Stats",
+        navGallery: "Gallery",
+        navProfile: "Profile",
+        dashboardNavigationTitle: "Dashboard Navigation",
+        dashboardNavigationSubtitle: "Lumipat sa iba't ibang seksyon ng dashboard.",
+        activityByDay: "By day",
+        activityByWeek: "By week",
+        activityByMonth: "By month",
+        activityAllTime: "All time",
+        dateToday: "Ngayon",
+        dateThisWeek: "Linggong ito",
+        dateThisMonth: "Buwang ito",
+        dateLastMonth: "Nakaraang buwan",
+        dateLast30Days: "Huling 30 araw",
+        dateAllTime: "Lahat ng panahon",
+        heroEyebrow: "Ngayon",
+        heroTitle: "I-track ang iyong gastusin sa iisang lugar.",
+        heroSubtitle:
+          "Magdagdag ng resibo, mag-update ng budget, at i-scan ang mga bagong entry nang hindi umaalis sa dashboard.",
+        quickAddTitle: "Mabilis na dagdag gastos",
+        quickAddSubtitle:
+          "I-save ang halaga, kategorya, notes, at opsyonal na resibo.",
+        monthlyPlansTitle: "Buwanang Plano",
+        monthlyPlansSubtitle:
+          "Ang mga recurring expense na ito ay awtomatikong ginagawa bawat buwan.",
+        budgetTargetMissing: "Walang budget target",
+        budgetTargetMissingMessage:
+          "Magdagdag ng buwanang budget para makita ang alerts at spending guidance.",
+        budgetExceeded: "Lumampas sa budget",
+        budgetExceededMessagePrefix:
+          "Lumampas ka sa buwanang target ng",
+        budgetExceededMessageSuffix:
+          ". Suriin ang mga bagong gastos at bawasan ang hindi mahalaga.",
+        budgetWarning: "Babala sa budget",
+        budgetWarningMessage:
+          "Malapit ka na sa iyong buwanang limit. Bantayan ang mga bagong gastos ngayong linggo.",
+        budgetOnTrack: "Maayos ang budget",
+        budgetOnTrackMessagePrefix: "May natitira ka pang",
+        budgetOnTrackMessageSuffix: "sa kasalukuyang cycle ng budget.",
+        openBudget: "Buksan ang Budget",
+        monthlyBudget: "Buwanang budget",
+        spentSoFar: "Nagastos sa ngayon",
+        percentUsed: "% nagamit",
+        ofBudget: "ng budget",
+        addBudgetTarget: "Magdagdag ng budget target para sa gabay",
+        remaining: "Natitira",
+        target: "Target",
+        status: "Status",
+        notSet: "Hindi pa nakatakda",
+        budgetSnapshot: "Budget Snapshot",
+        quickBudgetStatusPrefix: "Mabilis na budget status para sa",
+        recentExpenses: "Mga Kamakailang Gastos",
+        noExpensesYet: "Wala pang gastos",
+        noExpensesYetSubtitle:
+          "Magsimula sa Add expense, gumamit ng quick-add card, at mag-attach ng resibo kung gusto mo ng patunay sa pagbili.",
+        budgetPlanner: "Budget Planner",
+        budgetPlannerSubtitle:
+          "Magtakda ng category limits, subaybayan ang natitirang halaga, at pamahalaan ang debt reminders ngayong buwan.",
+        budgetCategories: "Budget categories",
+        activeDebts: "Active debts",
+        outstanding: "Outstanding",
+        addCategoryBudget: "Magdagdag ng category budget",
+        addCategoryBudgetSubtitle:
+          "Lumikha o palitan ang category budget gaya ng food, school, transport, o bills.",
+        selectCategory: "Pumili ng category",
+        budgetAmount: "Halaga ng budget",
+        purposeNote: "Layunin o note",
+        saveBudget: "I-save ang budget",
+        addDebtReminder: "Magdagdag ng debt reminder",
+        addDebtReminderSubtitle:
+          "Subaybayan ang hiniram na halaga, lender, at target due dates sa iisang listahan.",
+        debtTitle: "Pamagat ng utang",
+        amount: "Halaga",
+        personOrLender: "Tao o lender",
+        note: "Note",
+        saveDebt: "I-save ang utang",
+        savedCategoryBudgets: "Mga naka-save na category budget",
+        savedCategoryBudgetsSubtitle:
+          "Suriin, palitan, o alisin ang mga budget limit na na-save mo na.",
+        noCategoryBudgetsYet: "Wala pang category budgets.",
+        debtReminders: "Mga paalala sa utang",
+        debtRemindersSubtitle:
+          "Subaybayan ang hiniram na pera, lenders, at due dates sa iisang lugar.",
+        noDebtRemindersYet: "Wala pang debt reminders.",
+        delete: "Tanggalin",
+        markAsPaid: "Markahan bilang bayad",
+        paid: "Bayad",
+        used: "nagamit",
+        spent: "nagastos",
+        overBy: "lumampas ng",
+        left: "natitira",
+        spendingMomentum: "Spending Momentum",
+        momentum7d: "Huling 7 araw kumpara sa naunang 7 araw",
+        momentum30d: "Huling 30 araw kumpara sa naunang 30 araw",
+        momentum90d: "Huling 90 araw kumpara sa naunang 90 araw",
+        analytics: "Analytics",
+        categoryBreakdown: "Category breakdown",
+        categoryBreakdownSubtitle:
+          "Aling mga category ang may pinakamalaking gastos sa",
+        noCategorizedExpensesYet: "Wala pang categorized expenses para sa",
+        receiptGallery: "Receipt Gallery",
+        receiptGallerySubtitle:
+          "Suriin ang lahat ng na-upload na patunay sa iisang lugar para sa monthly activity.",
+        savedCountSuffix: "naka-save",
+        searchReceiptsPlaceholder:
+          "Maghanap ng receipts ayon sa expense, category, o note",
+        export: "Export",
+        exporting: "Nag-e-export...",
+        exportOptions: "Mga Opsyon sa Export",
+        exportCsvTitle: "CSV report",
+        exportCsvSubtitle:
+          "Spreadsheet-ready na listahan ng lahat ng expense rows sa napiling range.",
+        exportPdfTitle: "PDF report",
+        exportPdfSubtitle:
+          "Shareable na report na may summary at exported expenses.",
+        exportSummaryTitle: "Text summary",
+        exportSummarySubtitle:
+          "Nada-download na text report na may mabilis na summary at expense list.",
+        close: "Isara",
+        activityRangeTitle: "Activity range",
+        activityRangeSubtitle:
+          "Baguhin kung paano pinapangkat ang dashboard activity.",
+        editProfileTitle: "I-edit ang Profile",
+        save: "I-save",
+        cancel: "Kanselahin",
+        changePasswordTitle: "Palitan ang Password",
+        currentPassword: "Kasalukuyang password",
+        newPassword: "Bagong password",
+        confirmPassword: "Kumpirmahin ang password",
+        support: "Support",
+        aboutEyeGasto: "Tungkol sa EyeGasto",
+        account: "Account",
+        accountSubtitle:
+          "Pamahalaan ang iyong identity, preferences, at security details.",
+        accountOverview: "Account overview",
+        loggedInSince: "Naka-log in mula",
+        name: "Pangalan",
+        username: "Username",
+        email: "Email",
+        editProfileSubtitle:
+          "I-update ang iyong pangalan, username, at email sa iisang lugar.",
+        helpSupport: "Help at Support",
+        helpSupportSubtitle:
+          "Policies, answers, support contact, at impormasyon ng app.",
+        termsConditions: "Terms and Conditions",
+        termsSubtitle:
+          "Usage rules, storage expectations, at account responsibility.",
+        privacySubtitle:
+          "Paano hinahawakan ang profile details, expenses, at receipts.",
+        faq: "FAQ",
+        faqSubtitle:
+          "Karaniwang tanong tungkol sa sync, receipts, exports, at recurring plans.",
+        aboutSubtitle:
+          "Layunin ng produkto at kung bakit iba ang tracker na ito.",
+        contactSupport: "Contact Support",
+        contactSupportSubtitle:
+          "Makipag-ugnayan sa EyeGasto support inbox para sa account help.",
+        appVersion: "App Version",
+        versionLabel: "Version {version}",
+        session: "Session",
+        logout: "Mag-log out",
+        changePasswordSubtitle:
+          "I-update ang password nang hindi umaalis sa profile screen.",
+        confirmNewPassword: "Kumpirmahin ang bagong password",
+        updatePassword: "I-update ang password",
+        permissionNeeded: "Kailangan ng permission",
+        avatarPermission:
+          "Kailangan ng photo access para ma-update ang profile image mo.",
+        avatarUploadFailed: "Hindi na-upload ang avatar",
+        avatarUploadFallback:
+          "Hindi namin ma-save ang profile image mo.",
+        passwordCurrentRequired: "Ilagay ang kasalukuyang password mo.",
+        passwordNewRequired: "Ilagay ang bagong password.",
+        passwordTooShort:
+          "Ang bagong password ay dapat hindi bababa sa 6 characters.",
+        passwordMismatch: "Hindi magkapareho ang bagong passwords.",
+        passwordUnavailable:
+          "Hindi pa naka-configure ang password changes.",
+        passwordChanged: "Napaltan ang password.",
+        passwordChangeFailed: "Hindi napaltan ang password.",
+        recentExpensesSubtitle:
+          "Hanapin at suriin ang iyong mga pinakabagong entry.",
+        clearAll: "Burahin lahat",
+        searchExpensesPlaceholder:
+          "Maghanap ng gastos, category, o notes",
+        showLess: "Ipakita nang mas kaunti",
+        viewAllExpenses: "Tingnan lahat ng {count} gastos",
+        insights: "Insights",
+        insightsSubtitle:
+          "Mabilis na konteksto mula sa iyong kasalukuyang expense activity.",
+        topCategory: "Nangungunang category",
+        noDataYet: "Wala pang data",
+        addExpenses: "Magdagdag ng gastos",
+        receiptsSaved: "Mga naka-save na resibo",
+        entriesWithPhotoProof:
+          "Mga entry na may photo proof sa {range}",
+        memberSince: "Miyembro mula",
+        overviewActivity: "{range} activity ang nakikita.",
+        totalExpenses: "Kabuuang Gastos",
+        categoriesWithLimits: "Mga category na may saved monthly limits.",
+        openReminders: "Mga bukas na reminder na kailangan pang bayaran.",
+        totalUnpaidAmount:
+          "Kabuuang unpaid amount sa lahat ng active debts.",
+        enteredUsed: "{percent}% nagamit",
+        spentOverBy: "{spent} nagastos - lumampas ng {over}",
+        spentLeft: "{spent} nagastos - {left} natitira",
+        momentumSummary: "Buod ng momentum",
+        momentumSummaryBody:
+          "Gumastos ka ng {total} sa napiling window. Average spend kada period ay {average}. Peak period: {peakLabel} sa {peakAmount}.",
+        analyticsSubtitle:
+          "Weekly pace, monthly trend, at receipt consistency mula sa activity mo.",
+        monthOverMonth: "Buwan kumpara sa nakaraang buwan",
+        thisMonthVsLast:
+          "{thisMonth} ngayong buwan vs {lastMonth} noong nakaraang buwan.",
+        currentWeek: "Kasalukuyang linggo",
+        lastWeek: "Nakaraang linggo: {amount}",
+        averageExpense: "Average na gastos",
+        entriesInRange: "{count} entries sa {range}",
+        receiptCoverage: "Receipt coverage",
+        peakPeriod: "Peak period: {label} sa {amount}",
+        statsSmartInsights: "Mga mabilis na insight",
+        statsSmartInsightsSubtitle:
+          "Mabilis na signals mula sa spending pattern sa napiling range.",
+        insightTopCategoryDetail: "{amount} sa {range}",
+        insightWeeklyPaceTitle: "Takbo ng linggo",
+        insightWeeklyPaceUp: "Tumaas ng {percent}% kumpara noong nakaraang linggo.",
+        insightWeeklyPaceDown: "Bumaba ng {percent}% kumpara noong nakaraang linggo.",
+        insightWeeklyPaceFlat: "Halos pareho sa nakaraang linggo.",
+        insightWeeklyPaceNew: "Wala pang sapat na last-week data.",
+        insightReceiptProofTitle: "Saklaw ng resibo",
+        insightReceiptProofDetail: "{count} sa {total} entries ang may resibo.",
+        insightForecastTitle: "Tantiya sa buwan",
+        insightForecastDetail: "Projected na {amount} kung tuloy ang current pace.",
+        budgetImpactTitle: "Epekto sa budget",
+        budgetImpactSubtitle:
+          "Current month pace laban sa monthly budget at saved category limits.",
+        budgetImpactUsed: "Nagamit sa budget",
+        budgetImpactRemaining: "Magagamit pa",
+        budgetImpactProjected: "Tantiya",
+        budgetCategoryWatchlist: "Mga category na bantayan",
+        noBudgetImpactYet:
+          "Magdagdag ng monthly budget o category limits para sa mas malinaw na budget impact.",
+        categoryBudgetUsed: "{percent}% nagamit",
+        categoryBudgetLeft: "{amount} natitira",
+        categoryBudgetOver: "lumampas ng {amount}",
+        categoryDrilldownTitle: "Detalye ng category",
+        categoryDrilldownSubtitle:
+          "Recent expenses mula sa napiling category sa current range.",
+        selectedCategoryExpenseCount:
+          "{count} entries sa {category}",
+        noExpensesForCategory:
+          "Walang expenses sa category na ito para sa current range.",
+        receiptAttached: "May resibo",
+        chooseCurrency: "Pumili ng Currency",
+        chooseCurrencySubtitle:
+          "Piliin ang currency na gagamitin sa buong app.",
+        addExpenseTitle: "Magdagdag ng Gastos",
+        addExpenseSubtitle:
+          "I-save ang halaga, category, notes, at opsyonal na resibo.",
+        exportOptionsSubtitle:
+          "Piliin ang format na babagay sa review flow mo: CSV, shareable PDF, o text summary report.",
+        csvSpreadsheet: "CSV Spreadsheet",
+        csvSpreadsheetSubtitle:
+          "Pinakamainam para sa Excel, Google Sheets, at finance review.",
+        pdfReport: "PDF Report",
+        pdfReportSubtitle:
+          "Madaling basahing report para sa sharing, saving, o printing.",
+        summaryReport: "Summary Report",
+        summaryReportSubtitle:
+          "Nada-download na text report sa web at shareable text summary sa app.",
+        editExpenseTitle: "I-edit ang Gastos",
+        editExpenseAction: "I-edit ang gastos",
+        description: "Description",
+        category: "Category",
+        notes: "Notes",
+        uploadReceiptSubtitle:
+          "Mag-upload o palitan ang naka-save na resibo para sa gastos na ito.",
+        receiptImage: "Larawan ng resibo",
+        receiptPermission:
+          "Payagan ang photo access para makapag-attach ng resibo sa gastos na ito.",
+        missingDetails: "May kulang na detalye",
+        invalidEditExpense:
+          "Maglagay ng valid na description at halaga.",
+        all: "Lahat",
+        uncategorized: "Walang category",
+        receipt: "Resibo",
+        yes: "Oo",
+        no: "Hindi",
+        metric: "Metric",
+        value: "Value",
+        date: "Date",
+        entriesExported: "Na-export na entries",
+        expenseSummaryTitle: "EyeGasto Expense Summary",
+        generated: "Generated",
+        recentExportedExpenses: "Mga bagong exported expenses",
+        exportSummaryShareTitle: "Export summary report",
+        exportPdfShareTitle: "Export PDF report",
+        exportCsvShareTitle: "Export CSV report",
+        exportReady: "Handa na ang export",
+        savedReportTo: "Na-save ang report sa {fileUri}",
+        exportFailed: "Hindi na-export",
+        exportFailedMessage: "Hindi namin ma-generate ang report.",
+        noReceiptsMatched:
+          "Wala pang tumugmang resibo sa search na iyon.",
+        noReceiptsInCategory:
+          "Wala pang resibo sa {category}.",
+        noReceiptImages:
+          "Wala pang larawan ng resibo. Magdagdag nito kapag gumagawa o nag-e-edit ng gastos.",
+        tapFullReceipt: "I-tap para makita ang buong resibo",
+        saving: "Sine-save...",
+        saveChanges: "I-save ang changes",
+      };
+    default:
+      return {
+        navOverview: "Overview",
+        navBudget: "Budget",
+        navStats: "Stats",
+        navGallery: "Gallery",
+        navProfile: "Profile",
+        dashboardNavigationTitle: "Dashboard Navigation",
+        dashboardNavigationSubtitle: "Jump between dashboard sections.",
+        activityByDay: "By day",
+        activityByWeek: "By week",
+        activityByMonth: "By month",
+        activityAllTime: "All time",
+        dateToday: "Today",
+        dateThisWeek: "This week",
+        dateThisMonth: "This month",
+        dateLastMonth: "Last month",
+        dateLast30Days: "Last 30 days",
+        dateAllTime: "All time",
+        heroEyebrow: "Today",
+        heroTitle: "Track your expenses one place.",
+        heroSubtitle:
+          "Add a receipt, update your budget, and scan recent entries without leaving the dashboard.",
+        quickAddTitle: "Quick-add Expense",
+        quickAddSubtitle:
+          "Save the amount, category, notes, and optional receipt.",
+        monthlyPlansTitle: "Monthly Plans",
+        monthlyPlansSubtitle:
+          "These recurring expenses are recreated automatically each month.",
+        budgetTargetMissing: "Budget target missing",
+        budgetTargetMissingMessage:
+          "Add a monthly budget to unlock alerts and spending guidance.",
+        budgetExceeded: "Budget exceeded",
+        budgetExceededMessagePrefix: "You are over your monthly target by",
+        budgetExceededMessageSuffix:
+          ". Review recent expenses and pause non-essential spending.",
+        budgetWarning: "Budget warning",
+        budgetWarningMessage:
+          "You are close to your monthly limit. Keep an eye on new spending this week.",
+        budgetOnTrack: "Budget on track",
+        budgetOnTrackMessagePrefix: "You still have",
+        budgetOnTrackMessageSuffix: "left in this budget cycle.",
+        openBudget: "Open Budget",
+        monthlyBudget: "Monthly budget",
+        spentSoFar: "Spent so far",
+        percentUsed: "% used",
+        ofBudget: "of budget",
+        addBudgetTarget: "Add a budget target to unlock guidance",
+        remaining: "Remaining",
+        target: "Target",
+        status: "Status",
+        notSet: "Not set",
+        budgetSnapshot: "Budget Snapshot",
+        quickBudgetStatusPrefix: "Quick budget status for",
+        recentExpenses: "Recent Expenses",
+        noExpensesYet: "No expenses yet",
+        noExpensesYetSubtitle:
+          "Start with Add expense, use a quick-add card, and attach a receipt when you want proof for the purchase.",
+        budgetPlanner: "Budget Planner",
+        budgetPlannerSubtitle:
+          "Set category limits, track remaining amounts, and manage debt reminders for this month.",
+        budgetCategories: "Budget categories",
+        activeDebts: "Active debts",
+        outstanding: "Outstanding",
+        addCategoryBudget: "Add category budget",
+        addCategoryBudgetSubtitle:
+          "Create or replace a category budget such as food, school, transport, or bills.",
+        selectCategory: "Select category",
+        budgetAmount: "Budget amount",
+        purposeNote: "Purpose or note",
+        saveBudget: "Save budget",
+        addDebtReminder: "Add debt reminder",
+        addDebtReminderSubtitle:
+          "Track borrowed amounts, lenders, and target due dates in one list.",
+        debtTitle: "Debt title",
+        amount: "Amount",
+        personOrLender: "Person or lender",
+        note: "Note",
+        saveDebt: "Save debt",
+        savedCategoryBudgets: "Saved category budgets",
+        savedCategoryBudgetsSubtitle:
+          "Review, replace, or remove the budget limits you already saved.",
+        noCategoryBudgetsYet: "No category budgets yet.",
+        debtReminders: "Debt reminders",
+        debtRemindersSubtitle:
+          "Keep track of borrowed money, lenders, and due dates in one place.",
+        noDebtRemindersYet: "No debt reminders yet.",
+        delete: "Delete",
+        markAsPaid: "Mark as paid",
+        paid: "Paid",
+        used: "used",
+        spent: "spent",
+        overBy: "over by",
+        left: "left",
+        spendingMomentum: "Spending Momentum",
+        momentum7d: "Last 7 days compared with the previous 7 days",
+        momentum30d: "Last 30 days compared with the previous 30 days",
+        momentum90d: "Last 90 days compared with the previous 90 days",
+        analytics: "Analytics",
+        categoryBreakdown: "Category breakdown",
+        categoryBreakdownSubtitle:
+          "Which categories are driving the most spend in",
+        noCategorizedExpensesYet: "No categorized expenses yet for",
+        receiptGallery: "Receipt Gallery",
+        receiptGallerySubtitle:
+          "Review every uploaded proof in one place for monthly activity.",
+        savedCountSuffix: "saved",
+        searchReceiptsPlaceholder:
+          "Search receipts by expense, category, or note",
+        export: "Export",
+        exporting: "Exporting...",
+        exportOptions: "Export Options",
+        exportCsvTitle: "CSV report",
+        exportCsvSubtitle:
+          "Spreadsheet-ready list of all expense rows in the selected range.",
+        exportPdfTitle: "PDF report",
+        exportPdfSubtitle:
+          "Shareable report with the summary and exported expenses.",
+        exportSummaryTitle: "Text summary",
+        exportSummarySubtitle:
+          "Downloadable text report with the quick summary and expense list.",
+        close: "Close",
+        activityRangeTitle: "Activity range",
+        activityRangeSubtitle:
+          "Change how dashboard activity is grouped.",
+        editProfileTitle: "Edit Profile",
+        save: "Save",
+        cancel: "Cancel",
+        changePasswordTitle: "Change Password",
+        currentPassword: "Current password",
+        newPassword: "New password",
+        confirmPassword: "Confirm password",
+        support: "Support",
+        aboutEyeGasto: "About EyeGasto",
+        account: "Account",
+        accountSubtitle:
+          "Manage your identity, preferences, and security details.",
+        accountOverview: "Account overview",
+        loggedInSince: "Logged in since",
+        name: "Name",
+        username: "Username",
+        email: "Email",
+        editProfileSubtitle:
+          "Update your name, username, and email in one place.",
+        helpSupport: "Help and Support",
+        helpSupportSubtitle:
+          "Policies, answers, support contact, and app information.",
+        termsConditions: "Terms and Conditions",
+        termsSubtitle:
+          "Usage rules, storage expectations, and account responsibility.",
+        privacySubtitle:
+          "How profile details, expenses, and receipts are handled.",
+        faq: "FAQ",
+        faqSubtitle:
+          "Common questions about sync, receipts, exports, and recurring plans.",
+        aboutSubtitle:
+          "Product purpose and what makes this tracker different.",
+        contactSupport: "Contact Support",
+        contactSupportSubtitle:
+          "Reach the EyeGasto support inbox for help with your account.",
+        appVersion: "App Version",
+        versionLabel: "Version {version}",
+        session: "Session",
+        logout: "Log Out",
+        changePasswordSubtitle:
+          "Update your password without leaving the profile screen.",
+        confirmNewPassword: "Confirm new password",
+        updatePassword: "Update password",
+        permissionNeeded: "Permission needed",
+        avatarPermission:
+          "Photo access is required to update your profile image.",
+        avatarUploadFailed: "Avatar upload failed",
+        avatarUploadFallback:
+          "We could not save your profile image.",
+        passwordCurrentRequired: "Enter your current password.",
+        passwordNewRequired: "Enter a new password.",
+        passwordTooShort: "New password must be at least 6 characters.",
+        passwordMismatch: "New passwords do not match.",
+        passwordUnavailable: "Password changes are not configured yet.",
+        passwordChanged: "Password changed successfully.",
+        passwordChangeFailed: "Failed to change password.",
+        recentExpensesSubtitle: "Search and review your latest entries.",
+        clearAll: "Clear all",
+        searchExpensesPlaceholder:
+          "Search expenses, categories, or notes",
+        showLess: "Show less",
+        viewAllExpenses: "View all {count} expenses",
+        insights: "Insights",
+        insightsSubtitle:
+          "Quick context from your current expense activity.",
+        topCategory: "Top category",
+        noDataYet: "No data yet",
+        addExpenses: "Add expenses",
+        receiptsSaved: "Receipts saved",
+        entriesWithPhotoProof:
+          "Entries with photo proof attached in {range}",
+        memberSince: "Member since",
+        overviewActivity: "{range} activity in view.",
+        totalExpenses: "Total Expenses",
+        categoriesWithLimits: "Categories with saved monthly limits.",
+        openReminders: "Open reminders that still need to be settled.",
+        totalUnpaidAmount:
+          "Total unpaid amount across all active debts.",
+        enteredUsed: "{percent}% used",
+        spentOverBy: "{spent} spent - over by {over}",
+        spentLeft: "{spent} spent - {left} left",
+        momentumSummary: "Momentum summary",
+        momentumSummaryBody:
+          "You spent {total} in the selected window. Average period spend is {average}. Peak period: {peakLabel} at {peakAmount}.",
+        analyticsSubtitle:
+          "Weekly pace, monthly trend, and receipt consistency from your activity.",
+        monthOverMonth: "Month over month",
+        thisMonthVsLast:
+          "{thisMonth} this month vs {lastMonth} last month.",
+        currentWeek: "Current week",
+        lastWeek: "Last week: {amount}",
+        averageExpense: "Average expense",
+        entriesInRange: "{count} entries in {range}",
+        receiptCoverage: "Receipt coverage",
+        peakPeriod: "Peak period: {label} at {amount}",
+        statsSmartInsights: "Smart insights",
+        statsSmartInsightsSubtitle:
+          "Quick signals from the spending pattern in the selected range.",
+        insightTopCategoryDetail: "{amount} in {range}",
+        insightWeeklyPaceTitle: "Weekly pace",
+        insightWeeklyPaceUp: "Up {percent}% compared with last week.",
+        insightWeeklyPaceDown: "Down {percent}% compared with last week.",
+        insightWeeklyPaceFlat: "About the same as last week.",
+        insightWeeklyPaceNew: "Not enough last-week data yet.",
+        insightReceiptProofTitle: "Proof coverage",
+        insightReceiptProofDetail: "{count} of {total} entries have receipts.",
+        insightForecastTitle: "Month-end pace",
+        insightForecastDetail: "Projected at {amount} if this pace continues.",
+        budgetImpactTitle: "Budget impact",
+        budgetImpactSubtitle:
+          "Current month pace against your monthly budget and saved category limits.",
+        budgetImpactUsed: "Budget used",
+        budgetImpactRemaining: "Available",
+        budgetImpactProjected: "Projected",
+        budgetCategoryWatchlist: "Category watchlist",
+        noBudgetImpactYet:
+          "Add a monthly budget or category limits to see clearer budget impact.",
+        categoryBudgetUsed: "{percent}% used",
+        categoryBudgetLeft: "{amount} left",
+        categoryBudgetOver: "{amount} over",
+        categoryDrilldownTitle: "Category drilldown",
+        categoryDrilldownSubtitle:
+          "Recent expenses from the selected category in the current range.",
+        selectedCategoryExpenseCount:
+          "{count} entries in {category}",
+        noExpensesForCategory:
+          "No expenses in this category for the current range.",
+        receiptAttached: "Receipt attached",
+        chooseCurrency: "Choose Currency",
+        chooseCurrencySubtitle:
+          "Choose the currency used across the app.",
+        addExpenseTitle: "Add Expense",
+        addExpenseSubtitle:
+          "Save the amount, category, notes, and optional receipt.",
+        exportOptionsSubtitle:
+          "Choose the format that fits your review flow: spreadsheet-ready CSV, shareable PDF, or a printable summary report.",
+        csvSpreadsheet: "CSV Spreadsheet",
+        csvSpreadsheetSubtitle:
+          "Best for Excel, Google Sheets, and finance review.",
+        pdfReport: "PDF Report",
+        pdfReportSubtitle:
+          "Readable report for sharing, saving, or printing.",
+        summaryReport: "Summary Report",
+        summaryReportSubtitle:
+          "Printable report on web and shareable text summary on app.",
+        editExpenseTitle: "Edit Expense",
+        editExpenseAction: "Edit expense",
+        description: "Description",
+        category: "Category",
+        notes: "Notes",
+        uploadReceiptSubtitle:
+          "Upload or replace the saved receipt for this expense.",
+        receiptImage: "Receipt image",
+        receiptPermission:
+          "Allow photo access to attach a receipt to this expense.",
+        missingDetails: "Missing details",
+        invalidEditExpense:
+          "Please enter a valid description and amount.",
+        all: "All",
+        uncategorized: "Uncategorized",
+        receipt: "Receipt",
+        yes: "Yes",
+        no: "No",
+        metric: "Metric",
+        value: "Value",
+        date: "Date",
+        entriesExported: "Entries exported",
+        expenseSummaryTitle: "EyeGasto Expense Summary",
+        generated: "Generated",
+        recentExportedExpenses: "Recent Exported Expenses",
+        exportSummaryShareTitle: "Export summary report",
+        exportPdfShareTitle: "Export PDF report",
+        exportCsvShareTitle: "Export CSV report",
+        exportReady: "Export ready",
+        savedReportTo: "Saved report to {fileUri}",
+        exportFailed: "Export failed",
+        exportFailedMessage: "We couldn't generate the report.",
+        noReceiptsMatched: "No receipts matched that search yet.",
+        noReceiptsInCategory:
+          "No receipts saved under {category} yet.",
+        noReceiptImages:
+          "No receipt images yet. Add one when creating or editing an expense.",
+        tapFullReceipt: "Tap to view the full receipt",
+        saving: "Saving...",
+        saveChanges: "Save changes",
+      };
+  }
+};

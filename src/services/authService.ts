@@ -6,11 +6,54 @@ import {
 } from "../types/index";
 import { buildAuthRedirectUrl } from "./authRedirect";
 import financialPlanningService from "./financialPlanningService";
+import { withNetworkTimeout } from "./networkTimeout";
 import storageService, { StorageKeys } from "./storageService";
 import { supabase } from "./supabaseClient";
 import { normalizeCategoryName } from "../utils/category";
 
 class AuthService {
+  private normalizeUsername(value: string) {
+    return value.trim().toLowerCase();
+  }
+
+  private isEmailAddress(value: string) {
+    return /\S+@\S+\.\S+/.test(value.trim());
+  }
+
+  private isValidUsername(value: string) {
+    return /^[a-z0-9_]{3,24}$/.test(this.normalizeUsername(value));
+  }
+
+  private async resolveLoginEmail(loginIdentifier: string) {
+    const trimmed = loginIdentifier.trim();
+    if (!trimmed) {
+      return { success: false as const, error: "Email or username is required" };
+    }
+
+    if (this.isEmailAddress(trimmed)) {
+      return {
+        success: true as const,
+        email: trimmed.toLowerCase(),
+      };
+    }
+
+    const { data, error } = await supabase.rpc("resolve_login_email", {
+      login_identifier: trimmed,
+    });
+
+    if (error || !data) {
+      return {
+        success: false as const,
+        error: error?.message || "Username was not found",
+      };
+    }
+
+    return {
+      success: true as const,
+      email: String(data).toLowerCase(),
+    };
+  }
+
   private async persistCurrentUser(user: User | null) {
     if (!user) {
       await storageService.removeItem(StorageKeys.CURRENT_USER);
@@ -94,6 +137,7 @@ class AuthService {
     return {
       id: su.id,
       email: su.email ?? "",
+      username: su.user_metadata?.username ?? undefined,
       name: su.user_metadata?.name ?? su.email ?? "",
       avatar: su.user_metadata?.avatar ?? null,
       password: "",
@@ -108,25 +152,46 @@ class AuthService {
 
   private async hydrateSupabaseUser(su: any): Promise<User> {
     const baseUser = this.mapSupabaseUser(su);
-    const [tableBudgets, tableDebtItems] = await Promise.all([
-      financialPlanningService.getCategoryBudgets(baseUser.id),
-      financialPlanningService.getDebtItems(baseUser.id),
+    const [budgetResult, debtResult, profileResult] = await Promise.all([
+      withNetworkTimeout(
+        financialPlanningService.getCategoryBudgets(baseUser.id),
+      )
+        .then((data) => ({ data, ok: true }))
+        .catch(() => ({ data: [] as CategoryBudget[], ok: false })),
+      withNetworkTimeout(financialPlanningService.getDebtItems(baseUser.id))
+        .then((data) => ({ data, ok: true }))
+        .catch(() => ({ data: [] as DebtItem[], ok: false })),
+      withNetworkTimeout(
+        supabase
+          .from("user_profiles")
+          .select("username, full_name")
+          .eq("user_id", baseUser.id)
+          .maybeSingle(),
+      )
+        .then((result) => result)
+        .catch(() => ({ data: null })),
     ]);
 
+    const tableBudgets = budgetResult.data;
+    const tableDebtItems = debtResult.data;
     const metadataBudgets = this.mapCategoryBudgets(
       su.user_metadata?.categoryBudgets,
     );
     const metadataDebts = this.mapDebtItems(su.user_metadata?.debtItems);
 
     // Keep compatibility with existing accounts and auto-migrate metadata once.
-    if (tableBudgets.length === 0 && metadataBudgets.length > 0) {
-      await financialPlanningService.replaceCategoryBudgets(
-        baseUser.id,
-        metadataBudgets,
-      );
+    if (budgetResult.ok && tableBudgets.length === 0 && metadataBudgets.length > 0) {
+      await withNetworkTimeout(
+        financialPlanningService.replaceCategoryBudgets(
+          baseUser.id,
+          metadataBudgets,
+        ),
+      ).catch(() => false);
     }
-    if (tableDebtItems.length === 0 && metadataDebts.length > 0) {
-      await financialPlanningService.replaceDebtItems(baseUser.id, metadataDebts);
+    if (debtResult.ok && tableDebtItems.length === 0 && metadataDebts.length > 0) {
+      await withNetworkTimeout(
+        financialPlanningService.replaceDebtItems(baseUser.id, metadataDebts),
+      ).catch(() => false);
     }
 
     const refreshedBudgets =
@@ -135,6 +200,8 @@ class AuthService {
 
     return {
       ...baseUser,
+      username: profileResult.data?.username ?? baseUser.username,
+      name: profileResult.data?.full_name ?? baseUser.name,
       categoryBudgets: refreshedBudgets,
       debtItems: refreshedDebts,
     };
@@ -144,9 +211,10 @@ class AuthService {
     email: string,
     password: string,
     name: string,
+    username: string,
   ): Promise<{ success: boolean; error?: string; user?: User }> {
     try {
-      if (!email || !password || !name) {
+      if (!email || !password || !name || !username) {
         return { success: false, error: "All fields are required" };
       }
 
@@ -157,11 +225,22 @@ class AuthService {
         };
       }
 
+      if (!this.isValidUsername(username)) {
+        return {
+          success: false,
+          error:
+            "Username must be 3 to 24 characters and use only lowercase letters, numbers, or underscores",
+        };
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { name },
+          data: {
+            name,
+            username: this.normalizeUsername(username),
+          },
           emailRedirectTo: buildAuthRedirectUrl("auth/callback"),
         },
       });
@@ -182,12 +261,20 @@ class AuthService {
   }
 
   async login(
-    email: string,
+    loginIdentifier: string,
     password: string,
   ): Promise<{ success: boolean; error?: string; user?: User }> {
     try {
+      const resolvedLogin = await this.resolveLoginEmail(loginIdentifier);
+      if (!resolvedLogin.success) {
+        return {
+          success: false,
+          error: resolvedLogin.error,
+        };
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: resolvedLogin.email,
         password,
       });
 
@@ -233,10 +320,20 @@ class AuthService {
   }
 
   async sendRecoveryOtp(
-    email: string,
+    loginIdentifier: string,
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      const resolvedLogin = await this.resolveLoginEmail(loginIdentifier);
+      if (!resolvedLogin.success) {
+        return {
+          success: false,
+          error: resolvedLogin.error,
+        };
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        resolvedLogin.email,
+      );
 
       if (error) {
         return {
@@ -279,29 +376,32 @@ class AuthService {
   }
 
   async getCurrentUser(): Promise<User | null> {
+    const storedUser = await this.getStoredUser();
+
     try {
-      const { data, error } = await supabase.auth.getUser();
+      const { data, error } = await withNetworkTimeout(supabase.auth.getUser());
       if (error || !data.user) {
         if (
           error?.message?.includes("Invalid Refresh Token") ||
           error?.message?.includes("Refresh Token Not Found")
         ) {
           await this.clearInvalidSession();
+          return null;
         }
-        return this.getStoredUser();
+        return storedUser;
       }
-      const user = await this.hydrateSupabaseUser(data.user);
+      const user = await withNetworkTimeout(this.hydrateSupabaseUser(data.user));
       await this.persistCurrentUser(user);
       return user;
     } catch (error) {
       console.error("Error getting current user:", error);
-      return this.getStoredUser();
+      return storedUser;
     }
   }
 
   async logout(): Promise<boolean> {
     try {
-      const { error } = await supabase.auth.signOut();
+      const { error } = await withNetworkTimeout(supabase.auth.signOut());
       if (error) throw error;
       await this.persistCurrentUser(null);
       return true;
@@ -314,6 +414,7 @@ class AuthService {
 
   async updateUser(updates: {
     name?: string;
+    username?: string;
     email?: string;
     avatar?: string;
     recurringExpenses?: RecurringExpenseTemplate[];
@@ -328,11 +429,23 @@ class AuthService {
 
       const updateData: any = { data: {} };
       const hasNameUpdate = updates.name !== undefined;
+      const hasUsernameUpdate = updates.username !== undefined;
       const hasAvatarUpdate = updates.avatar !== undefined;
       const hasRecurringUpdate = updates.recurringExpenses !== undefined;
       const hasEmailUpdate = updates.email !== undefined;
 
       if (hasNameUpdate) updateData.data.name = updates.name;
+      if (hasUsernameUpdate) {
+        const normalizedUsername = this.normalizeUsername(updates.username ?? "");
+        if (!this.isValidUsername(normalizedUsername)) {
+          return {
+            success: false,
+            error:
+              "Username must be 3 to 24 characters and use only lowercase letters, numbers, or underscores",
+          };
+        }
+        updateData.data.username = normalizedUsername;
+      }
       if (hasAvatarUpdate) updateData.data.avatar = updates.avatar;
       if (hasRecurringUpdate) {
         updateData.data.recurringExpenses = updates.recurringExpenses;
@@ -463,13 +576,18 @@ class AuthService {
   }
 
   private async ensureActiveSession() {
-    const { data } = await supabase.auth.getSession();
+    const { data } = await withNetworkTimeout(supabase.auth.getSession()).catch(
+      () => ({ data: { session: null } }),
+    );
     if (data.session) {
       return true;
     }
 
     const { data: refreshed, error: refreshError } =
-      await supabase.auth.refreshSession();
+      await withNetworkTimeout(supabase.auth.refreshSession()).catch(() => ({
+        data: { session: null },
+        error: new Error("Session refresh timed out"),
+      }));
     if (refreshError || !refreshed.session) {
       return false;
     }
